@@ -15,8 +15,10 @@ import type { ReactNode } from "react";
 import { NavLink } from "react-router-dom";
 
 import { useHealth } from "../hooks/useHealth";
+import { useTelemetry } from "../realtime/TelemetryContext";
 import { BrandMark } from "./BrandMark";
 import { HealthBadge } from "./HealthBadge";
+import { TelemetryBadge } from "./TelemetryBadge";
 
 interface NavigationItem {
   label: string;
@@ -83,6 +85,7 @@ function Navigation({ compact = false }: { compact?: boolean }) {
 
 export function AppShell({ children }: { children: ReactNode }) {
   const health = useHealth();
+  const telemetry = useTelemetry();
   const isHealthy = health.data?.status === "healthy" && !health.isError;
 
   return (
@@ -142,7 +145,10 @@ export function AppShell({ children }: { children: ReactNode }) {
               Security Monitoring &amp; Attack Detection Platform
             </p>
           </div>
-          <HealthBadge isHealthy={isHealthy} isLoading={health.isLoading} />
+          <div className="flex items-center gap-2">
+            <TelemetryBadge state={telemetry.connectionState} />
+            <HealthBadge isHealthy={isHealthy} isLoading={health.isLoading} />
+          </div>
         </header>
 
         <div className="border-b border-line bg-[#0c121b] pt-3 lg:hidden">

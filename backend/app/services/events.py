@@ -1,8 +1,11 @@
+import logging
+from datetime import UTC, datetime
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import NotFoundError
+from app.models.asset import Asset
 from app.models.security_event import SecurityEvent
 from app.repositories.assets import AssetRepository
 from app.repositories.events import SecurityEventRepository
@@ -13,6 +16,8 @@ from app.schemas.security_event import (
     SecurityEventResponse,
 )
 from app.services.normalization import EventNormalizer
+
+logger = logging.getLogger(__name__)
 
 
 class SecurityEventService:
@@ -38,19 +43,57 @@ class SecurityEventService:
 
     async def create(self, payload: SecurityEventCreate) -> SecurityEventResponse:
         normalized = EventNormalizer.normalize(payload.model_dump())
-        asset = None
-        if normalized.asset_id:
-            asset = await self.asset_repository.get(normalized.asset_id)
-            if asset is None:
-                raise NotFoundError("ASSET_NOT_FOUND", "Referenced asset does not exist.")
-        elif normalized.hostname:
-            asset = await self.asset_repository.get_by_hostname(normalized.hostname)
+        asset = await self._resolve_asset(normalized)
 
         values = normalized.model_dump()
         if asset:
             values["asset_id"] = asset.id
             values["hostname"] = values["hostname"] or asset.hostname
+            if normalized.timestamp > self._as_utc(asset.last_seen):
+                asset.last_seen = normalized.timestamp
+
         event = SecurityEvent(**values)
-        await self.repository.create(event)
-        await self.session.commit()
+        try:
+            await self.repository.create(event)
+            await self.session.commit()
+        except Exception:
+            await self.session.rollback()
+            raise
         return SecurityEventResponse.model_validate(event)
+
+    async def _resolve_asset(self, event: SecurityEventCreate) -> Asset | None:
+        asset = None
+        if event.asset_id:
+            asset = await self.asset_repository.get(event.asset_id)
+            if asset is None:
+                raise NotFoundError("ASSET_NOT_FOUND", "Referenced asset does not exist.")
+            logger.info("event_asset_resolved method=asset_id asset_id=%s", asset.id)
+            return asset
+
+        if event.hostname:
+            asset = await self.asset_repository.get_by_hostname(event.hostname)
+            if asset:
+                logger.info("event_asset_resolved method=hostname asset_id=%s", asset.id)
+                return asset
+
+        candidate_ips = list(
+            dict.fromkeys(ip for ip in (event.destination_ip, event.source_ip) if ip is not None)
+        )
+        matches = await self.asset_repository.get_by_ip_addresses(candidate_ips)
+        if len(matches) == 1:
+            logger.info("event_asset_resolved method=ip asset_id=%s", matches[0].id)
+            return matches[0]
+        if len(matches) > 1:
+            logger.warning(
+                "event_asset_resolution_ambiguous candidate_count=%d",
+                len(matches),
+            )
+        else:
+            logger.info("event_asset_unresolved")
+        return None
+
+    @staticmethod
+    def _as_utc(value: datetime) -> datetime:
+        if value.tzinfo is None or value.utcoffset() is None:
+            return value.replace(tzinfo=UTC)
+        return value.astimezone(UTC)

@@ -2,9 +2,9 @@
 
 **Security Monitoring & Attack Detection Platform**
 
-SENTINEL is an experimental security monitoring and Purple Team platform designed for controlled environments. It currently provides persistent asset inventory, normalized security-event storage, investigation workflows, and database-backed operational dashboards.
+SENTINEL is an experimental security monitoring and Purple Team platform for controlled environments. It provides persistent asset inventory, normalized security-event storage, live telemetry delivery, investigation workflows, and database-backed operational dashboards.
 
-> Current status: **Milestone 1 — SENTINEL Core**. Detection, alerts, incidents, live telemetry, MITRE ATT&CK mapping, the attack simulator, and the corporate lab are intentionally future milestones.
+> Current status: **Milestone 2 - Live Telemetry**. Detection, alerts, incidents, MITRE ATT&CK mapping, attack simulation, and the corporate lab are future milestones.
 
 ## What is SENTINEL?
 
@@ -15,13 +15,15 @@ SENTINEL is a portfolio-grade exploration of the architecture behind SIEM, EDR/X
 - Persistent PostgreSQL Asset and SecurityEvent domain models
 - SQLAlchemy 2.x async data access with constrained, indexed schemas
 - Alembic-managed schema lifecycle; application startup never calls `create_all`
-- Versioned assets and normalized-events APIs with validation, filters, and bounded pagination
+- Versioned asset and event APIs with validation, filtering, and bounded pagination
+- Dedicated telemetry ingestion with deterministic asset resolution and monotonic `last_seen`
+- Typed WebSocket delivery after PostgreSQL commit, with browser-origin checks and per-client failure isolation
+- Automatic frontend reconnection, missed-event REST recovery, ID deduplication, and live row cues
+- Debounced dashboard and asset-detail updates through TanStack Query
+- Safe bounded synthetic producer with single, stream, and burst modes
 - Database-side dashboard summary and aggregation queries
-- Idempotent demo seeding with 5 lab assets and 180 coherent historical events
-- Searchable Assets workspace and detailed asset profiles with recent activity
-- Filterable Events investigation table and safe JSON evidence drawer
-- Recharts activity, severity, event-type, and active-asset visualizations
-- Explicit loading, error, and empty states through TanStack Query
+- Idempotent demo seeding with five lab assets and 180 coherent historical events
+- Searchable Assets, Asset Details, Events investigation, and safe JSON evidence views
 - Structured JSON logging and structured API errors
 - Loopback-bound Docker services running as unprivileged users
 
@@ -29,19 +31,19 @@ SENTINEL is a portfolio-grade exploration of the architecture behind SIEM, EDR/X
 
 ```mermaid
 flowchart LR
-    UI[React dashboard] -->|same-origin /api/v1| Proxy[Nginx]
-    Proxy --> Routes[FastAPI routes]
-    Routes --> Services[Application services]
-    Services --> Repositories[Query repositories]
-    Repositories --> DB[(PostgreSQL 16)]
-    Normalizer[Event normalizer] --> Services
+    Producer[Synthetic producer] -->|POST telemetry| API[FastAPI]
+    API --> Normalizer[Event normalizer]
+    Normalizer --> Service[Security event service]
+    Service --> DB[(PostgreSQL 16)]
+    Service -->|after commit| WS[WebSocket manager]
+    WS --> Proxy[Nginx]
+    Proxy --> UI[React dashboard]
+    UI -->|authoritative REST queries| Proxy
     Alembic[Alembic migrations] --> DB
     Seed[Deterministic demo seed] --> DB
 ```
 
-The frontend never calculates security totals by downloading the event table. Lists are filtered and paginated in SQL, and dashboard aggregates are produced by dedicated database queries.
-
-See [Architecture](docs/architecture.md), [API Reference](docs/api.md), and [Security Model](docs/security-model.md).
+PostgreSQL remains the source of truth. WebSockets provide low-latency delivery; REST refetches repair any gap after reconnection. See [Architecture](docs/architecture.md), [Telemetry](docs/telemetry.md), [API Reference](docs/api.md), and [Security Model](docs/security-model.md).
 
 ## Technology stack
 
@@ -51,7 +53,7 @@ See [Architecture](docs/architecture.md), [API Reference](docs/api.md), and [Sec
 | Backend | Python 3.12+, FastAPI, Pydantic, SQLAlchemy 2.x, Alembic, Uvicorn |
 | Database | PostgreSQL 16 |
 | Runtime | Docker, Docker Compose, Nginx |
-| Quality | pytest, Ruff, ESLint, Prettier, strict TypeScript, GitHub Actions |
+| Quality | pytest, Ruff, Vitest, ESLint, Prettier, strict TypeScript, GitHub Actions |
 
 ## Quick start
 
@@ -60,46 +62,60 @@ Requirements:
 - Docker Desktop with Docker Compose
 - Ports `3000`, `8000`, and `5432` available on localhost, or customized in `.env`
 
-No local PostgreSQL installation is required.
-
 ```bash
 docker compose up --build -d
 docker compose exec -T backend python -m app.cli.seed
 ```
 
-The backend applies `alembic upgrade head` before starting. Seeding is explicit and idempotent: rerunning it updates the five demo assets and does not duplicate its 180 deterministic events.
-
-PowerShell uses the same commands:
-
-```powershell
-docker compose up --build -d
-docker compose exec -T backend python -m app.cli.seed
-```
+The backend applies `alembic upgrade head` before starting. Seeding is explicit and idempotent. The same commands work in PowerShell.
 
 Open:
 
 - Dashboard: <http://localhost:3000>
+- Events: <http://localhost:3000/events>
 - API health: <http://localhost:8000/api/v1/health>
-- OpenAPI documentation: <http://localhost:8000/api/docs>
+- OpenAPI: <http://localhost:8000/api/docs>
 
 The Compose defaults work without an `.env` file. Copy `.env.example` to `.env` to customize local values.
 
-## Demo data commands
+## Live telemetry
+
+The development producer exercises the complete live path:
+
+```text
+Synthetic Producer -> Telemetry API -> Normalization -> PostgreSQL -> WebSocket -> React
+```
+
+With the stack seeded and `/events` open, run:
 
 ```bash
-# Apply outstanding migrations manually
+make telemetry
+```
+
+Windows alternative:
+
+```powershell
+python tools/telemetry_producer.py --mode stream --count 25 --interval 2
+```
+
+Other bounded modes:
+
+```bash
+python tools/telemetry_producer.py --mode single
+python tools/telemetry_producer.py --mode burst --count 100
+```
+
+The producer targets the seeded hosts and emits synthetic development telemetry only. It does not collect endpoint data or simulate attacks. `Ctrl+C` stops a stream cleanly.
+
+## Demo data
+
+```bash
 docker compose exec -T backend alembic upgrade head
-
-# Synchronize five assets and add missing deterministic events
 docker compose exec -T backend python -m app.cli.seed
-
-# Replace only the 180 deterministic demo events, preserving other records
 docker compose exec -T backend python -m app.cli.seed --reset
 ```
 
 Equivalent Make targets are `make migrate`, `make seed`, `make demo`, and `make reset`.
-
-The demo inventory contains:
 
 | Hostname | Type | Zone | Address |
 | --- | --- | --- | --- |
@@ -109,7 +125,7 @@ The demo inventory contains:
 | `admin-server` | Server | Server | `10.10.30.10` |
 | `database` | Database | Server | `10.10.30.20` |
 
-These are database records only. Milestone 1 does not create lab containers.
+These are database records only. Milestone 2 does not create lab containers.
 
 ## Local development
 
@@ -127,14 +143,12 @@ python -m app.cli.seed
 uvicorn app.main:app --reload
 ```
 
-PowerShell equivalent:
+PowerShell activation and environment setup:
 
 ```powershell
-docker compose up -d postgres
 Set-Location backend
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
-python -m pip install -r requirements-dev.txt
 $env:DATABASE_URL = 'postgresql+asyncpg://sentinel:sentinel_dev_only_change_me@localhost:5432/sentinel'
 alembic upgrade head
 python -m app.cli.seed
@@ -149,7 +163,7 @@ npm ci
 npm run dev
 ```
 
-Vite runs at <http://localhost:5173> and proxies `/api` to port `8000`.
+Vite runs at <http://localhost:5173> and proxies both HTTP and WebSocket `/api` traffic to port `8000`.
 
 ## Quality checks
 
@@ -161,29 +175,32 @@ pytest
 alembic check
 
 cd ../frontend
+npm ci
 npm run lint
 npm run typecheck
-npm run build
+npm test
 npm run format:check
+npm run build
+npm audit
 
 cd ..
 docker compose config --quiet
 ```
 
-Backend tests use an isolated in-memory database and never depend on manually seeded data. Migration validation is also run against PostgreSQL in CI.
+Backend tests use an isolated in-memory database. Migration validation runs against PostgreSQL in CI.
 
 ## Security model
 
-All published ports bind to `127.0.0.1`. The event API accepts normalized defensive telemetry but performs no collection, scanning, detection, or offensive action. Future simulator work will target only allow-listed SENTINEL lab containers on isolated Docker networks.
+Published services bind to `127.0.0.1`. The telemetry API accepts normalized defensive data but performs no collection, scanning, detection, or offensive action. WebSocket browser origins are allow-listed for local development. A real deployment must add collector authentication, TLS, and production ingress controls before exposing ingestion.
 
 ## Roadmap
 
-1. **SENTINEL Core — complete:** persistent assets/events, normalized ingestion, APIs, investigation UI, and dashboard aggregates
-2. **Live Telemetry:** ingestion producer and WebSocket updates
-3. **Detection Engine:** deterministic YAML rules and alerts
+1. **SENTINEL Core - complete:** persistent assets/events, normalized storage APIs, investigation UI, and dashboard aggregates
+2. **Live Telemetry - complete:** dedicated ingestion, asset resolution, WebSocket delivery, live query updates, and synthetic producer
+3. **Detection Engine:** deterministic rules and alerts
 4. **Corporate Docker Lab:** isolated enterprise service simulations
 5. **Attack Simulator:** safe, allow-listed scenarios
-6. **Network Topology:** backend-driven React Flow graph
+6. **Network Topology:** backend-driven graph
 7. **Incident Correlation:** timelines and multi-stage breach scenario
 8. **MITRE ATT&CK Experience:** tactics, techniques, and attack progression
 
@@ -193,4 +210,4 @@ The project demonstrates defensive security concepts and full-stack engineering 
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT - see [LICENSE](LICENSE).

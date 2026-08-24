@@ -7,6 +7,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.models.enums import AssetStatus, AssetType, Criticality
+from app.schemas.common import as_utc
 
 MAC_ADDRESS_PATTERN = re.compile(r"^(?:[0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$")
 
@@ -137,6 +138,11 @@ class AssetResponse(BaseModel):
     metadata_json: dict[str, Any]
     created_at: datetime
     updated_at: datetime
+
+    @field_validator("first_seen", "last_seen", "created_at", "updated_at")
+    @classmethod
+    def utc_database_timestamp(cls, value: datetime) -> datetime:
+        return as_utc(value)
 
 
 class AssetReference(BaseModel):

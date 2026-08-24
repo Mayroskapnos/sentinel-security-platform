@@ -13,6 +13,7 @@ from app.core.config import get_settings
 from app.core.errors import AppError
 from app.core.logging import configure_logging
 from app.db.session import close_database
+from app.realtime.manager import websocket_manager
 
 settings = get_settings()
 configure_logging(settings.log_level)
@@ -23,6 +24,7 @@ logger = logging.getLogger(__name__)
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     logger.info("SENTINEL API starting")
     yield
+    await websocket_manager.close_all()
     await close_database()
     logger.info("SENTINEL API stopped")
 
@@ -55,7 +57,11 @@ async def application_exception_handler(_: Request, exc: AppError) -> JSONRespon
 
 
 @app.exception_handler(RequestValidationError)
-async def validation_exception_handler(_: Request, exc: RequestValidationError) -> JSONResponse:
+async def validation_exception_handler(
+    request: Request, exc: RequestValidationError
+) -> JSONResponse:
+    if request.url.path.startswith("/api/v1/telemetry"):
+        logger.warning("telemetry_validation_failed path=%s", request.url.path)
     return JSONResponse(
         status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
         content={

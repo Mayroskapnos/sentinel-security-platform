@@ -1,5 +1,6 @@
 import { FilterX, Search, SlidersHorizontal, X } from "lucide-react";
-import { type FormEvent, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { type FormEvent, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 
 import { EventStatusBadge, SeverityBadge } from "../components/data/Badge";
@@ -10,7 +11,7 @@ import {
   ErrorState,
   LoadingState,
 } from "../components/data/QueryState";
-import { useEvent, useEvents } from "../hooks/useCoreData";
+import { queryKeys, useEvent, useEvents } from "../hooks/useCoreData";
 import {
   endpoint,
   formatDateTime,
@@ -18,6 +19,8 @@ import {
   toApiTimestamp,
 } from "../lib/format";
 import type { EventFilters } from "../types/core";
+import { useTelemetry } from "../realtime/TelemetryContext";
+import { canInsertLiveEvent, eventMatchesFilters } from "../realtime/telemetry";
 
 const inputClass =
   "h-9 rounded-md border border-line bg-[#0b111a] px-3 text-xs text-slate-200 outline-none transition focus:border-accent/50 focus:ring-1 focus:ring-accent/20";
@@ -152,6 +155,8 @@ function EventDetailDrawer({
 }
 
 export function EventsPage() {
+  const queryClient = useQueryClient();
+  const telemetry = useTelemetry();
   const [searchParams, setSearchParams] = useSearchParams();
   const [hostname, setHostname] = useState(searchParams.get("hostname") ?? "");
   const [username, setUsername] = useState(searchParams.get("username") ?? "");
@@ -160,23 +165,36 @@ export function EventsPage() {
     searchParams.get("destination_ip") ?? "",
   );
 
-  const filters: EventFilters = {
-    hostname: searchParams.get("hostname") || undefined,
-    asset_id: searchParams.get("asset_id") || undefined,
-    event_type: searchParams.get("event_type") || undefined,
-    severity:
-      (searchParams.get("severity") as EventFilters["severity"]) || undefined,
-    source_ip: searchParams.get("source_ip") || undefined,
-    destination_ip: searchParams.get("destination_ip") || undefined,
-    username: searchParams.get("username") || undefined,
-    status: searchParams.get("status") || undefined,
-    start_time: searchParams.get("start_time") || undefined,
-    end_time: searchParams.get("end_time") || undefined,
-    page: positiveInteger(searchParams.get("page"), 1),
-    page_size: 20,
-  };
+  const filters = useMemo<EventFilters>(
+    () => ({
+      hostname: searchParams.get("hostname") || undefined,
+      asset_id: searchParams.get("asset_id") || undefined,
+      event_type: searchParams.get("event_type") || undefined,
+      severity:
+        (searchParams.get("severity") as EventFilters["severity"]) || undefined,
+      source_ip: searchParams.get("source_ip") || undefined,
+      destination_ip: searchParams.get("destination_ip") || undefined,
+      username: searchParams.get("username") || undefined,
+      status: searchParams.get("status") || undefined,
+      start_time: searchParams.get("start_time") || undefined,
+      end_time: searchParams.get("end_time") || undefined,
+      page: positiveInteger(searchParams.get("page"), 1),
+      page_size: 20,
+    }),
+    [searchParams],
+  );
   const events = useEvents(filters);
   const selectedEvent = searchParams.get("event") ?? undefined;
+  const [acknowledgedEventIds, setAcknowledgedEventIds] = useState<
+    ReadonlySet<string>
+  >(() => new Set());
+  const pendingEvents = canInsertLiveEvent(filters)
+    ? []
+    : telemetry.receivedEvents.filter(
+        (event) =>
+          !acknowledgedEventIds.has(event.id) &&
+          eventMatchesFilters(event, filters),
+      );
 
   function updateParameters(updates: Record<string, string>) {
     const next = new URLSearchParams(searchParams);
@@ -228,15 +246,38 @@ export function EventsPage() {
     setSourceIp("");
     setDestinationIp("");
     setSearchParams({});
+    setAcknowledgedEventIds(
+      new Set(telemetry.receivedEvents.map((event) => event.id)),
+    );
+  }
+
+  function showNewestEvents() {
+    const next = new URLSearchParams(searchParams);
+    next.delete("page");
+    next.delete("start_time");
+    next.delete("end_time");
+    next.delete("event");
+    setAcknowledgedEventIds(
+      new Set(telemetry.receivedEvents.map((event) => event.id)),
+    );
+    setSearchParams(next);
+    void queryClient.invalidateQueries({ queryKey: queryKeys.events.lists });
   }
 
   return (
     <div className="mx-auto max-w-[1600px]">
       <PageHeading
         actions={
-          <span className="rounded-md border border-line bg-panel px-3 py-2 font-mono text-xs text-muted">
-            {events.data?.total ?? 0} matching events
-          </span>
+          <div className="flex flex-col items-end gap-2">
+            <span className="rounded-md border border-line bg-panel px-3 py-2 font-mono text-xs text-muted">
+              {events.data?.total ?? 0} matching events
+            </span>
+            {telemetry.connectionState !== "connected" && (
+              <span className="text-[11px] text-amber-300/80">
+                Live telemetry unavailable. Historical events remain available.
+              </span>
+            )}
+          </div>
         }
         description="Investigate normalized telemetry with server-side filtering, bounded queries, and preserved raw evidence."
         eyebrow="Security telemetry"
@@ -374,6 +415,23 @@ export function EventsPage() {
           </div>
         </form>
 
+        {pendingEvents.length > 0 && (
+          <div className="flex items-center justify-between gap-3 border-b border-accent/15 bg-accent/[0.06] px-4 py-3 text-xs text-slate-300">
+            <span>
+              {pendingEvents.length} new event
+              {pendingEvents.length === 1 ? " is" : "s are"} available outside
+              this historical page.
+            </span>
+            <button
+              className="shrink-0 rounded-md border border-accent/30 bg-accent/10 px-3 py-1.5 font-medium text-accent hover:bg-accent/15"
+              onClick={showNewestEvents}
+              type="button"
+            >
+              Show newest
+            </button>
+          </div>
+        )}
+
         {events.isLoading ? (
           <LoadingState label="Loading normalized events" />
         ) : events.isError ? (
@@ -401,7 +459,11 @@ export function EventsPage() {
                 <tbody className="divide-y divide-line/70">
                   {events.data.items.map((event) => (
                     <tr
-                      className="transition-colors hover:bg-white/[0.025]"
+                      className={`transition-colors hover:bg-white/[0.025] ${
+                        telemetry.liveEventIds.has(event.id)
+                          ? "bg-accent/[0.07]"
+                          : ""
+                      }`}
                       key={event.id}
                     >
                       <td className="whitespace-nowrap px-4 py-3 font-mono text-[11px] text-muted">
@@ -418,6 +480,11 @@ export function EventsPage() {
                         >
                           {humanize(event.event_type)}
                         </button>
+                        {telemetry.liveEventIds.has(event.id) && (
+                          <span className="ml-2 rounded border border-accent/25 bg-accent/10 px-1.5 py-0.5 text-[9px] font-semibold tracking-wider text-accent">
+                            LIVE
+                          </span>
+                        )}
                       </td>
                       <td className="px-4 py-3 font-mono text-[11px] text-slate-400">
                         {endpoint(event.source_ip, event.source_port)}

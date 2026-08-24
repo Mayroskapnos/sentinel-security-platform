@@ -1,4 +1,4 @@
-.PHONY: setup dev up down logs test lint build config migrate seed demo reset clean
+.PHONY: setup dev up down logs test lint build config migrate seed demo reset telemetry telemetry-burst clean
 
 setup:
 	@test -f .env || cp .env.example .env
@@ -22,7 +22,7 @@ test:
 	cd backend && python -m pytest
 
 lint:
-	cd backend && ruff check . && ruff format --check .
+	cd backend && ruff check . ../tools && ruff format --check . ../tools
 	cd frontend && npm run lint && npm run typecheck
 
 build:
@@ -41,6 +41,12 @@ demo: seed
 
 reset:
 	docker compose exec -T backend python -m app.cli.seed --reset
+
+telemetry:
+	python tools/telemetry_producer.py --mode stream --count 25 --interval 2
+
+telemetry-burst:
+	python tools/telemetry_producer.py --mode burst --count 100
 
 clean:
 	docker compose down --remove-orphans

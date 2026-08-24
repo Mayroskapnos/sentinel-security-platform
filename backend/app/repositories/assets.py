@@ -1,3 +1,4 @@
+from collections.abc import Sequence
 from uuid import UUID
 
 from sqlalchemy import Select, func, or_, select
@@ -52,6 +53,16 @@ class AssetRepository:
 
     async def get_by_hostname(self, hostname: str) -> Asset | None:
         return await self.session.scalar(select(Asset).where(Asset.hostname == hostname))
+
+    async def get_by_ip_addresses(self, ip_addresses: Sequence[str]) -> Sequence[Asset]:
+        if not ip_addresses:
+            return []
+        result = await self.session.scalars(
+            select(Asset)
+            .where(Asset.ip_address.in_(ip_addresses))
+            .order_by(Asset.ip_address, Asset.id)
+        )
+        return list(result)
 
     async def create(self, asset: Asset) -> Asset:
         self.session.add(asset)

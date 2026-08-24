@@ -22,6 +22,10 @@ class Settings(BaseSettings):
     api_host: str = "0.0.0.0"
     api_port: int = 8000
     frontend_url: str = "http://localhost:3000"
+    websocket_allowed_origins: str = (
+        "http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173,http://127.0.0.1:5173"
+    )
+    telemetry_max_body_bytes: int = Field(default=262_144, ge=1, le=10_485_760)
     database_url: str = Field(
         default="postgresql+asyncpg://sentinel:sentinel_dev_only_change_me@localhost:5432/sentinel"
     )
@@ -29,6 +33,12 @@ class Settings(BaseSettings):
     @property
     def cors_origins(self) -> list[str]:
         return [origin.strip() for origin in self.frontend_url.split(",") if origin.strip()]
+
+    @property
+    def websocket_origins(self) -> set[str]:
+        return {
+            origin.strip() for origin in self.websocket_allowed_origins.split(",") if origin.strip()
+        }
 
 
 @lru_cache

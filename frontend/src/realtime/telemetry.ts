@@ -1,0 +1,189 @@
+import type {
+  EventFilters,
+  EventSeverity,
+  Page,
+  SecurityEvent,
+} from "../types/core";
+
+export type TelemetryConnectionState =
+  "connecting" | "connected" | "reconnecting" | "disconnected" | "error";
+
+export interface SecurityEventMessage {
+  version: "1";
+  type: "security_event";
+  timestamp: string;
+  data: SecurityEvent;
+}
+
+export interface TelemetryStatusMessage {
+  version: "1";
+  type: "telemetry_status";
+  timestamp: string;
+  data: {
+    status: "connected";
+    connected_clients: number;
+  };
+}
+
+export type TelemetryMessage = SecurityEventMessage | TelemetryStatusMessage;
+
+const severities = new Set<EventSeverity>([
+  "informational",
+  "low",
+  "medium",
+  "high",
+  "critical",
+]);
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isNullableString(value: unknown): value is string | null {
+  return typeof value === "string" || value === null;
+}
+
+function isNullableNumber(value: unknown): value is number | null {
+  return typeof value === "number" || value === null;
+}
+
+function isSeverity(value: unknown): value is EventSeverity {
+  return typeof value === "string" && severities.has(value as EventSeverity);
+}
+
+function isAssetReference(value: unknown): boolean {
+  return (
+    value === null ||
+    (isRecord(value) &&
+      typeof value.id === "string" &&
+      typeof value.hostname === "string" &&
+      typeof value.display_name === "string")
+  );
+}
+
+function isSecurityEvent(value: unknown): value is SecurityEvent {
+  return (
+    isRecord(value) &&
+    typeof value.id === "string" &&
+    typeof value.timestamp === "string" &&
+    typeof value.event_type === "string" &&
+    typeof value.source === "string" &&
+    isNullableString(value.source_ip) &&
+    isNullableString(value.destination_ip) &&
+    isNullableNumber(value.source_port) &&
+    isNullableNumber(value.destination_port) &&
+    isNullableString(value.hostname) &&
+    isNullableString(value.username) &&
+    isNullableString(value.process_name) &&
+    typeof value.action === "string" &&
+    typeof value.status === "string" &&
+    isSeverity(value.severity) &&
+    isRecord(value.raw_event) &&
+    isRecord(value.normalized_data) &&
+    isNullableString(value.asset_id) &&
+    isAssetReference(value.asset) &&
+    typeof value.created_at === "string"
+  );
+}
+
+export function parseTelemetryMessage(raw: string): TelemetryMessage | null {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw) as unknown;
+  } catch {
+    return null;
+  }
+
+  if (
+    !isRecord(parsed) ||
+    parsed.version !== "1" ||
+    typeof parsed.timestamp !== "string" ||
+    !isRecord(parsed.data)
+  ) {
+    return null;
+  }
+
+  if (parsed.type === "security_event" && isSecurityEvent(parsed.data)) {
+    return parsed as unknown as SecurityEventMessage;
+  }
+  if (
+    parsed.type === "telemetry_status" &&
+    parsed.data.status === "connected" &&
+    typeof parsed.data.connected_clients === "number"
+  ) {
+    return parsed as unknown as TelemetryStatusMessage;
+  }
+  return null;
+}
+
+export function eventMatchesFilters(
+  event: SecurityEvent,
+  filters: EventFilters,
+): boolean {
+  const contains = (value: string | null, expected: string | undefined) =>
+    !expected || value?.toLowerCase().includes(expected.toLowerCase()) === true;
+
+  if (!contains(event.hostname, filters.hostname)) return false;
+  if (!contains(event.username, filters.username)) return false;
+  if (filters.asset_id && event.asset_id !== filters.asset_id) return false;
+  if (filters.event_type && event.event_type !== filters.event_type)
+    return false;
+  if (filters.severity && event.severity !== filters.severity) return false;
+  if (filters.source_ip && event.source_ip !== filters.source_ip) return false;
+  if (
+    filters.destination_ip &&
+    event.destination_ip !== filters.destination_ip
+  ) {
+    return false;
+  }
+  if (filters.status && event.status !== filters.status) return false;
+
+  const timestamp = Date.parse(event.timestamp);
+  if (filters.start_time && timestamp < Date.parse(filters.start_time)) {
+    return false;
+  }
+  if (filters.end_time && timestamp > Date.parse(filters.end_time))
+    return false;
+  return true;
+}
+
+export function canInsertLiveEvent(filters: EventFilters): boolean {
+  return (filters.page ?? 1) === 1 && !filters.start_time && !filters.end_time;
+}
+
+export function mergeEventPage(
+  page: Page<SecurityEvent>,
+  event: SecurityEvent,
+): Page<SecurityEvent> {
+  if (page.items.some((item) => item.id === event.id)) return page;
+
+  const items = [event, ...page.items]
+    .sort((left, right) => {
+      const timeDifference =
+        Date.parse(right.timestamp) - Date.parse(left.timestamp);
+      return timeDifference || right.id.localeCompare(left.id);
+    })
+    .slice(0, page.page_size);
+  const total = page.total + 1;
+  return {
+    ...page,
+    items,
+    total,
+    pages: Math.ceil(total / page.page_size),
+  };
+}
+
+export function reconnectDelay(
+  attempt: number,
+  jitter = Math.random(),
+): number {
+  const baseDelay = Math.min(1_000 * 2 ** Math.max(0, attempt), 30_000);
+  return Math.round(baseDelay * (0.8 + Math.min(1, Math.max(0, jitter)) * 0.4));
+}
+
+export function telemetryWebSocketUrl(): string {
+  const configured = import.meta.env.VITE_WS_URL;
+  if (configured) return configured;
+  const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+  return `${protocol}//${window.location.host}/api/v1/ws/events`;
+}

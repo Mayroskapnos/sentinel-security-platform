@@ -7,6 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 from app.models.enums import EventSeverity
 from app.schemas.asset import AssetReference
+from app.schemas.common import as_utc
 
 
 def validate_optional_ip(value: str | None) -> str | None:
@@ -68,6 +69,11 @@ class SecurityEventResponse(BaseModel):
     asset_id: UUID | None
     asset: AssetReference | None
     created_at: datetime
+
+    @field_validator("timestamp", "created_at")
+    @classmethod
+    def utc_database_timestamp(cls, value: datetime) -> datetime:
+        return as_utc(value)
 
 
 class SecurityEventFilters(BaseModel):

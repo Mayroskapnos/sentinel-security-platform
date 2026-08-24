@@ -1,6 +1,14 @@
 import math
+from datetime import UTC, datetime
 
 from pydantic import BaseModel, Field
+
+
+def as_utc(value: datetime) -> datetime:
+    """Normalize database timestamps, treating timezone-less DB values as UTC."""
+    if value.tzinfo is None or value.utcoffset() is None:
+        return value.replace(tzinfo=UTC)
+    return value.astimezone(UTC)
 
 
 class Page[T](BaseModel):
