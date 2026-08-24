@@ -1,0 +1,83 @@
+name: sentinel
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-sentinel}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-sentinel_dev_only_change_me}
+      POSTGRES_DB: ${POSTGRES_DB:-sentinel}
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - sentinel_postgres_data:/var/lib/postgresql/data
+    networks:
+      - sentinel_management
+
+  backend:
+    build:
+      context: ./backend
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://sentinel:sentinel_dev_only_change_me@postgres:5432/sentinel}
+      API_HOST: 0.0.0.0
+      API_PORT: 8000
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
+      SENTINEL_ENV: ${SENTINEL_ENV:-development}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/v1/health', timeout=3)",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+    ports:
+      - "127.0.0.1:${API_PORT:-8000}:8000"
+    restart: unless-stopped
+    networks:
+      - sentinel_management
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/api/v1}
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    ports:
+      - "127.0.0.1:${FRONTEND_PORT:-3000}:8080"
+    restart: unless-stopped
+    networks:
+      - sentinel_management
+
+volumes:
+  sentinel_postgres_data:
+
+networks:
+  sentinel_management:
+    name: sentinel_management
+    driver: bridge
