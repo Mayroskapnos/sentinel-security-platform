@@ -1,7 +1,13 @@
 import logging
+from collections.abc import AsyncIterator
 
 from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import (
+    AsyncEngine,
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
 from sqlalchemy.pool import AsyncAdaptedQueuePool
 
 from app.core.config import get_settings
@@ -15,6 +21,16 @@ engine: AsyncEngine = create_async_engine(
     poolclass=AsyncAdaptedQueuePool,
 )
 async_session_factory = async_sessionmaker(engine, expire_on_commit=False)
+
+
+async def get_db_session() -> AsyncIterator[AsyncSession]:
+    """Provide one transaction-scoped session per request."""
+    async with async_session_factory() as session:
+        try:
+            yield session
+        except Exception:
+            await session.rollback()
+            raise
 
 
 async def check_database() -> bool:

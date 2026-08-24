@@ -12,10 +12,12 @@ RUN addgroup --system sentinel && adduser --system --ingroup sentinel sentinel
 COPY requirements.txt ./
 RUN python -m pip install --requirement requirements.txt
 
+COPY --chown=sentinel:sentinel alembic.ini ./
+COPY --chown=sentinel:sentinel alembic ./alembic
 COPY --chown=sentinel:sentinel app ./app
 
 USER sentinel
 
 EXPOSE 8000
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"]

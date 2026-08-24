@@ -1,4 +1,4 @@
-.PHONY: setup dev up down logs test lint build config clean
+.PHONY: setup dev up down logs test lint build config migrate seed demo reset clean
 
 setup:
 	@test -f .env || cp .env.example .env
@@ -30,6 +30,17 @@ build:
 
 config:
 	docker compose config --quiet
+
+migrate:
+	docker compose exec -T backend alembic upgrade head
+
+seed:
+	docker compose exec -T backend python -m app.cli.seed
+
+demo: seed
+
+reset:
+	docker compose exec -T backend python -m app.cli.seed --reset
 
 clean:
 	docker compose down --remove-orphans

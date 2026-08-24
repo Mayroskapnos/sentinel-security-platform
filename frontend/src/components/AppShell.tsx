@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
+import { NavLink } from "react-router-dom";
 
 import { useHealth } from "../hooks/useHealth";
 import { BrandMark } from "./BrandMark";
@@ -20,13 +21,13 @@ import { HealthBadge } from "./HealthBadge";
 interface NavigationItem {
   label: string;
   icon: LucideIcon;
-  active?: boolean;
+  to?: string;
 }
 
 const primaryNavigation: NavigationItem[] = [
-  { label: "Overview", icon: Gauge, active: true },
-  { label: "Assets", icon: Boxes },
-  { label: "Events", icon: Activity },
+  { label: "Overview", icon: Gauge, to: "/" },
+  { label: "Assets", icon: Boxes, to: "/assets" },
+  { label: "Events", icon: Activity, to: "/events" },
   { label: "Alerts", icon: BellRing },
   { label: "Incidents", icon: ShieldCheck },
   { label: "Attack Map", icon: Network },
@@ -35,6 +36,8 @@ const primaryNavigation: NavigationItem[] = [
 ];
 
 function Navigation({ compact = false }: { compact?: boolean }) {
+  const baseClass = `group flex shrink-0 items-center gap-3 rounded-lg border px-3 py-2.5 text-left text-sm transition-colors`;
+
   return (
     <nav
       aria-label="Primary navigation"
@@ -44,23 +47,36 @@ function Navigation({ compact = false }: { compact?: boolean }) {
           : "flex flex-1 flex-col gap-1 px-3"
       }
     >
-      {primaryNavigation.map(({ active, icon: Icon, label }) => (
-        <button
-          key={label}
-          aria-current={active ? "page" : undefined}
-          className={`group flex shrink-0 items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm transition-colors ${
-            active
-              ? "border border-accent/20 bg-accent/10 font-medium text-accent"
-              : "border border-transparent text-muted hover:bg-white/[0.035] hover:text-slate-200"
-          }`}
-          disabled={!active}
-          title={!active ? "Available in a later milestone" : undefined}
-          type="button"
-        >
-          <Icon className="size-[18px]" strokeWidth={1.8} />
-          <span>{label}</span>
-        </button>
-      ))}
+      {primaryNavigation.map(({ icon: Icon, label, to }) =>
+        to ? (
+          <NavLink
+            className={({ isActive }) =>
+              `${baseClass} ${
+                isActive
+                  ? "border-accent/20 bg-accent/10 font-medium text-accent"
+                  : "border-transparent text-muted hover:bg-white/[0.035] hover:text-slate-200"
+              }`
+            }
+            end={to === "/"}
+            key={label}
+            to={to}
+          >
+            <Icon className="size-[18px]" strokeWidth={1.8} />
+            <span>{label}</span>
+          </NavLink>
+        ) : (
+          <button
+            className={`${baseClass} border-transparent text-slate-600`}
+            disabled
+            key={label}
+            title="Available in a later milestone"
+            type="button"
+          >
+            <Icon className="size-[18px]" strokeWidth={1.8} />
+            <span>{label}</span>
+          </button>
+        ),
+      )}
     </nav>
   );
 }

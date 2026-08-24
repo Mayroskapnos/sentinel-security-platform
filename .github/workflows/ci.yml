@@ -12,6 +12,22 @@ jobs:
   backend:
     name: Backend checks
     runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql+asyncpg://sentinel:sentinel_test@localhost:5432/sentinel_test
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: sentinel
+          POSTGRES_PASSWORD: sentinel_test
+          POSTGRES_DB: sentinel_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U sentinel -d sentinel_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     defaults:
       run:
         working-directory: backend
@@ -28,6 +44,8 @@ jobs:
       - run: ruff check .
       - run: ruff format --check .
       - run: pytest
+      - run: alembic upgrade head
+      - run: alembic check
 
   frontend:
     name: Frontend checks
