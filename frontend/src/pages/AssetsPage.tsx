@@ -209,7 +209,7 @@ export function AssetsPage() {
               </table>
             </div>
             <Pagination
-              onPageChange={(page) => setFilter("page", String(page))}
+              onPageChange={(page: number) => setFilter("page", String(page))}
               page={assets.data.page}
               pages={assets.data.pages}
               total={assets.data.total}
