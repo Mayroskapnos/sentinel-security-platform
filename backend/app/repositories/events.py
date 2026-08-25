@@ -21,6 +21,8 @@ class SecurityEventRepository:
             query = query.where(SecurityEvent.asset_id == filters.asset_id)
         if filters.event_type:
             query = query.where(SecurityEvent.event_type == filters.event_type)
+        if filters.source:
+            query = query.where(SecurityEvent.source == filters.source)
         if filters.severity:
             query = query.where(SecurityEvent.severity == filters.severity)
         if filters.source_ip:

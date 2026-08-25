@@ -1,5 +1,29 @@
 name: sentinel
 
+x-bounded-logging: &bounded-logging
+  driver: json-file
+  options:
+    max-size: "5m"
+    max-file: "3"
+
+x-lab-host: &lab-host
+  build:
+    context: ./lab/host
+  restart: unless-stopped
+  healthcheck:
+    test:
+      [
+        "CMD",
+        "python",
+        "-c",
+        "import socket; socket.create_connection(('127.0.0.1', 22), 3).close()",
+      ]
+    interval: 15s
+    timeout: 5s
+    retries: 10
+    start_period: 10s
+  logging: *bounded-logging
+
 services:
   postgres:
     image: postgres:16-alpine
@@ -17,6 +41,7 @@ services:
       timeout: 5s
       retries: 10
     restart: unless-stopped
+    logging: *bounded-logging
     ports:
       - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
     volumes:
@@ -34,6 +59,8 @@ services:
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
       WEBSOCKET_ALLOWED_ORIGINS: ${WEBSOCKET_ALLOWED_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173,http://127.0.0.1:5173}
       TELEMETRY_MAX_BODY_BYTES: ${TELEMETRY_MAX_BODY_BYTES:-262144}
+      COLLECTOR_API_KEY: ${COLLECTOR_API_KEY:-sentinel_local_collector_key_change_me}
+      LAB_TELEMETRY_STALE_SECONDS: ${LAB_TELEMETRY_STALE_SECONDS:-120}
       SENTINEL_ENV: ${SENTINEL_ENV:-development}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
     depends_on:
@@ -54,6 +81,7 @@ services:
     ports:
       - "127.0.0.1:${API_PORT:-8000}:8000"
     restart: unless-stopped
+    logging: *bounded-logging
     networks:
       - sentinel_management
 
@@ -73,13 +101,297 @@ services:
     ports:
       - "127.0.0.1:${FRONTEND_PORT:-3000}:8080"
     restart: unless-stopped
+    logging: *bounded-logging
     networks:
       - sentinel_management
 
+  sentinel-db:
+    container_name: sentinel-db
+    build:
+      context: ./lab/database
+    environment:
+      POSTGRES_USER: ${LAB_POSTGRES_USER:-lab_admin}
+      POSTGRES_PASSWORD: ${LAB_POSTGRES_PASSWORD:-corporate_lab_admin_demo}
+      POSTGRES_DB: ${LAB_POSTGRES_DB:-corp_demo}
+      LAB_DB_USER: ${LAB_DB_USER:-lab_app}
+      LAB_DB_PASSWORD: ${LAB_DB_PASSWORD:-corporate_lab_db_demo}
+      TZ: UTC
+    command:
+      - postgres
+      - -c
+      - log_destination=jsonlog
+      - -c
+      - logging_collector=on
+      - -c
+      - log_directory=/var/log/postgresql
+      - -c
+      - log_filename=postgresql
+      - -c
+      - log_file_mode=0640
+      - -c
+      - log_connections=on
+      - -c
+      - log_disconnections=on
+      - -c
+      - log_min_duration_statement=0
+      - -c
+      - log_rotation_age=1440
+      - -c
+      - log_truncate_on_rotation=on
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 15
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      - lab_postgres_data:/var/lib/postgresql/data
+      - lab_database_logs:/var/log/postgresql
+    networks:
+      sentinel_server:
+        ipv4_address: 10.10.30.20
+        aliases:
+          - lab-database-server
+      sentinel_employee:
+        ipv4_address: 10.10.20.21
+        aliases:
+          - lab-database-employee
+    logging: *bounded-logging
+
+  sentinel-web:
+    container_name: sentinel-web
+    build:
+      context: ./lab/web
+    environment:
+      LAB_WEB_USER: ${LAB_WEB_USER:-demo-user}
+      LAB_WEB_PASSWORD: ${LAB_WEB_PASSWORD:-corporate_lab_demo}
+      LAB_DB_HOST: lab-database-server
+      LAB_DB_NAME: ${LAB_POSTGRES_DB:-corp_demo}
+      LAB_DB_USER: ${LAB_DB_USER:-lab_app}
+      LAB_DB_PASSWORD: ${LAB_DB_PASSWORD:-corporate_lab_db_demo}
+      TZ: UTC
+    depends_on:
+      sentinel-db:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; request=urllib.request.Request('http://127.0.0.1:8080/health', headers={'User-Agent':'Docker-Healthcheck'}); urllib.request.urlopen(request, timeout=3)",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      - lab_web_logs:/var/log/sentinel-lab
+    networks:
+      sentinel_dmz:
+        ipv4_address: 10.10.10.10
+      sentinel_employee:
+        ipv4_address: 10.10.20.20
+      sentinel_server:
+        ipv4_address: 10.10.30.30
+    logging: *bounded-logging
+
+  sentinel-lab-gateway:
+    container_name: sentinel-lab-gateway
+    build:
+      context: ./lab/gateway
+    depends_on:
+      sentinel-web:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+    ports:
+      - "127.0.0.1:${LAB_WEB_PORT:-8081}:8080"
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - sentinel_management
+      - sentinel_dmz
+    logging: *bounded-logging
+
+  sentinel-employee-01:
+    <<: *lab-host
+    container_name: sentinel-employee-01
+    environment:
+      LAB_HOSTNAME: employee-01
+      LAB_ASSET_IP: 10.10.20.10
+      LAB_ACTIVITY_INTERVAL: ${LAB_ACTIVITY_INTERVAL:-45}
+      LAB_SSH_PASSWORD: ${LAB_SSH_PASSWORD:-corporate_lab_ssh_demo}
+      LAB_WEB_USER: ${LAB_WEB_USER:-demo-user}
+      LAB_WEB_PASSWORD: ${LAB_WEB_PASSWORD:-corporate_lab_demo}
+      LAB_DB_NAME: ${LAB_POSTGRES_DB:-corp_demo}
+      LAB_DB_USER: ${LAB_DB_USER:-lab_app}
+      LAB_DB_PASSWORD: ${LAB_DB_PASSWORD:-corporate_lab_db_demo}
+      TZ: UTC
+    depends_on:
+      sentinel-web:
+        condition: service_healthy
+    volumes:
+      - lab_employee_01_logs:/var/log/sentinel-lab
+    networks:
+      sentinel_employee:
+        ipv4_address: 10.10.20.10
+
+  sentinel-employee-02:
+    <<: *lab-host
+    container_name: sentinel-employee-02
+    environment:
+      LAB_HOSTNAME: employee-02
+      LAB_ASSET_IP: 10.10.20.11
+      LAB_ACTIVITY_INTERVAL: ${LAB_ACTIVITY_INTERVAL:-55}
+      LAB_SSH_PASSWORD: ${LAB_SSH_PASSWORD:-corporate_lab_ssh_demo}
+      LAB_WEB_USER: ${LAB_WEB_USER:-demo-user}
+      LAB_WEB_PASSWORD: ${LAB_WEB_PASSWORD:-corporate_lab_demo}
+      LAB_DB_NAME: ${LAB_POSTGRES_DB:-corp_demo}
+      LAB_DB_USER: ${LAB_DB_USER:-lab_app}
+      LAB_DB_PASSWORD: ${LAB_DB_PASSWORD:-corporate_lab_db_demo}
+      TZ: UTC
+    depends_on:
+      sentinel-web:
+        condition: service_healthy
+    volumes:
+      - lab_employee_02_logs:/var/log/sentinel-lab
+    networks:
+      sentinel_employee:
+        ipv4_address: 10.10.20.11
+
+  sentinel-admin:
+    <<: *lab-host
+    container_name: sentinel-admin
+    environment:
+      LAB_HOSTNAME: admin-server
+      LAB_ASSET_IP: 10.10.30.10
+      LAB_ACTIVITY_INTERVAL: ${LAB_ACTIVITY_INTERVAL:-60}
+      LAB_SSH_PASSWORD: ${LAB_SSH_PASSWORD:-corporate_lab_ssh_demo}
+      LAB_WEB_USER: ${LAB_WEB_USER:-demo-user}
+      LAB_WEB_PASSWORD: ${LAB_WEB_PASSWORD:-corporate_lab_demo}
+      LAB_DB_NAME: ${LAB_POSTGRES_DB:-corp_demo}
+      LAB_DB_USER: ${LAB_DB_USER:-lab_app}
+      LAB_DB_PASSWORD: ${LAB_DB_PASSWORD:-corporate_lab_db_demo}
+      TZ: UTC
+    volumes:
+      - lab_admin_logs:/var/log/sentinel-lab
+    networks:
+      sentinel_server:
+        ipv4_address: 10.10.30.10
+      sentinel_employee:
+        ipv4_address: 10.10.20.30
+
+  sentinel-collector:
+    container_name: sentinel-collector
+    build:
+      context: ./backend
+    command: ["python", "-m", "app.collector.main"]
+    environment:
+      SENTINEL_URL: http://backend:8000
+      COLLECTOR_API_KEY: ${COLLECTOR_API_KEY:-sentinel_local_collector_key_change_me}
+      LAB_LOG_ROOT: /logs
+      COLLECTOR_STATE_ROOT: /var/lib/sentinel-collector
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      TZ: UTC
+    depends_on:
+      backend:
+        condition: service_healthy
+      sentinel-web:
+        condition: service_healthy
+      sentinel-employee-01:
+        condition: service_healthy
+      sentinel-employee-02:
+        condition: service_healthy
+      sentinel-admin:
+        condition: service_healthy
+      sentinel-db:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import pathlib,time; path=pathlib.Path('/var/lib/sentinel-collector/healthy'); raise SystemExit(0 if path.exists() and time.time()-path.stat().st_mtime < 20 else 1)",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    group_add:
+      - "70"
+    volumes:
+      - lab_web_logs:/logs/web:ro
+      - lab_employee_01_logs:/logs/employee-01:ro
+      - lab_employee_02_logs:/logs/employee-02:ro
+      - lab_admin_logs:/logs/admin:ro
+      - lab_database_logs:/logs/database:ro
+      - lab_collector_state:/var/lib/sentinel-collector
+    networks:
+      - sentinel_management
+    logging: *bounded-logging
+
 volumes:
   sentinel_postgres_data:
+  lab_postgres_data:
+  lab_web_logs:
+  lab_employee_01_logs:
+  lab_employee_02_logs:
+  lab_admin_logs:
+  lab_database_logs:
+  lab_collector_state:
 
 networks:
   sentinel_management:
     name: sentinel_management
     driver: bridge
+  sentinel_dmz:
+    name: sentinel_dmz
+    driver: bridge
+    internal: true
+    ipam:
+      config:
+        - subnet: 10.10.10.0/24
+  sentinel_employee:
+    name: sentinel_employee
+    driver: bridge
+    internal: true
+    ipam:
+      config:
+        - subnet: 10.10.20.0/24
+  sentinel_server:
+    name: sentinel_server
+    driver: bridge
+    internal: true
+    ipam:
+      config:
+        - subnet: 10.10.30.0/24

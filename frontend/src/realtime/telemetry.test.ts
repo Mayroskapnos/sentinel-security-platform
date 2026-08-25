@@ -125,10 +125,12 @@ describe("live event cache behavior", () => {
     expect(
       eventMatchesFilters(event, {
         hostname: "employee",
+        source: "linux_auth",
         severity: "low",
         status: "failed",
       }),
     ).toBe(true);
+    expect(eventMatchesFilters(event, { source: "postgresql" })).toBe(false);
     expect(eventMatchesFilters(event, { severity: "critical" })).toBe(false);
     expect(canInsertLiveEvent({ page: 1 })).toBe(true);
     expect(canInsertLiveEvent({ page: 7 })).toBe(false);

@@ -56,6 +56,19 @@ function JsonEvidence({
   );
 }
 
+function eventOrigin(event: {
+  source: string;
+  normalized_data: Record<string, unknown>;
+}): string {
+  if (event.normalized_data.origin === "corporate_lab") return "Corporate Lab";
+  if (
+    event.normalized_data.origin === "synthetic" ||
+    event.normalized_data.demo_seed
+  )
+    return "Synthetic";
+  return "External / API";
+}
+
 function EventDetailDrawer({
   eventId,
   onClose,
@@ -111,6 +124,7 @@ function EventDetailDrawer({
               {[
                 ["Timestamp", formatDateTime(event.data.timestamp)],
                 ["Telemetry source", humanize(event.data.source)],
+                ["Origin", eventOrigin(event.data)],
                 ["Hostname", event.data.hostname ?? "Unresolved"],
                 ["Asset", event.data.asset?.display_name ?? "Unresolved"],
                 [
@@ -170,6 +184,7 @@ export function EventsPage() {
       hostname: searchParams.get("hostname") || undefined,
       asset_id: searchParams.get("asset_id") || undefined,
       event_type: searchParams.get("event_type") || undefined,
+      source: searchParams.get("source") || undefined,
       severity:
         (searchParams.get("severity") as EventFilters["severity"]) || undefined,
       source_ip: searchParams.get("source_ip") || undefined,
@@ -360,6 +375,25 @@ export function EventsPage() {
               <option value="medium">Medium</option>
               <option value="high">High</option>
               <option value="critical">Critical</option>
+            </select>
+            <select
+              aria-label="Telemetry source"
+              className={inputClass}
+              onChange={(event) =>
+                setSingleFilter("source", event.target.value)
+              }
+              value={filters.source ?? ""}
+            >
+              <option value="">All telemetry sources</option>
+              <option value="web_access">Web access</option>
+              <option value="web_application">Web application</option>
+              <option value="linux_auth">Linux authentication</option>
+              <option value="linux_process">Linux process</option>
+              <option value="linux_privilege">Linux privilege</option>
+              <option value="postgresql">PostgreSQL</option>
+              <option value="network">Network</option>
+              <option value="container_health">Container health</option>
+              <option value="synthetic">Synthetic</option>
             </select>
             <select
               aria-label="Event status"

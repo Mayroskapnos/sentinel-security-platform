@@ -42,6 +42,11 @@ const RuleDetailPage = lazy(() =>
     default: module.RuleDetailPage,
   })),
 );
+const SystemPage = lazy(() =>
+  import("./pages/SystemPage").then((module) => ({
+    default: module.SystemPage,
+  })),
+);
 
 export default function App() {
   return (
@@ -56,6 +61,7 @@ export default function App() {
           <Route element={<AlertDetailPage />} path="/alerts/:alertId" />
           <Route element={<RulesPage />} path="/rules" />
           <Route element={<RuleDetailPage />} path="/rules/:ruleId" />
+          <Route element={<SystemPage />} path="/system" />
           <Route element={<Navigate replace to="/" />} path="*" />
         </Routes>
       </Suspense>

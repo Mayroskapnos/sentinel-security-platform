@@ -147,6 +147,7 @@ export interface EventFilters {
   hostname?: string;
   asset_id?: string;
   event_type?: string;
+  source?: string;
   severity?: EventSeverity;
   source_ip?: string;
   destination_ip?: string;
@@ -220,4 +221,29 @@ export interface DashboardActivity {
   events_by_severity: CountBucket[];
   events_by_type: CountBucket[];
   most_active_assets: ActiveAssetBucket[];
+}
+
+export interface LabAssetStatus {
+  hostname: string;
+  display_name: string;
+  network_zone: string;
+  status: "online" | "offline";
+  telemetry_status: "active" | "stale";
+  last_telemetry: string | null;
+}
+
+export interface LabSourceStatus {
+  source: string;
+  status: "active" | "stale";
+  last_telemetry: string | null;
+}
+
+export interface LabStatus {
+  version: string;
+  status: "running" | "degraded" | "offline";
+  collector_status: "active" | "stale";
+  active_assets: number;
+  total_assets: number;
+  assets: LabAssetStatus[];
+  sources: LabSourceStatus[];
 }

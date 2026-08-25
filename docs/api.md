@@ -62,6 +62,7 @@ Filters:
 - `hostname`
 - `asset_id`
 - `event_type`
+- `source`
 - `severity`
 - `source_ip`
 - `destination_ip`
@@ -80,13 +81,15 @@ Returns normalized fields, optional resolved asset reference, normalized data, a
 
 ### `POST /api/v1/events`
 
-Creates one normalized event through the shared ingestion boundary. Ports are constrained to 0-65535, IPs are validated, and timestamps must include timezone information. After commit it is broadcast and evaluated exactly once. Machine producers should normally use the telemetry boundary.
+Creates one normalized event through the shared ingestion boundary. Ports are constrained to 0-65535, IPs are validated, and timestamps must include timezone information. After commit it is broadcast and evaluated exactly once. Machine producers should normally use the telemetry boundary. When `COLLECTOR_API_KEY` is configured, this route and the telemetry POST require `X-Sentinel-Collector-Key`.
 
 ## Live telemetry
 
 ### `POST /api/v1/telemetry/events`
 
 Validates, normalizes, resolves, persists, broadcasts, and then evaluates one machine-generated event. The response is the committed `SecurityEventResponse`, including its database UUID, with `201 Created`. A rule failure is isolated and cannot roll back that event.
+
+Compose configures the corporate collector to send `X-Sentinel-Collector-Key`. A missing or invalid key returns `401 COLLECTOR_AUTHENTICATION_FAILED`. The check is optional in configurations where `COLLECTOR_API_KEY` is unset.
 
 ```json
 {
@@ -189,6 +192,12 @@ Returns total assets, online assets, high-risk assets, events today, events in t
 
 Accepts `hours` from 1 through 168 (default 72) and returns hourly counts, severity counts, event-type counts, and most-active assets.
 
+## Corporate lab
+
+### `GET /api/v1/lab/status`
+
+Returns Corporate Lab v0.1 status inferred from recent real-lab telemetry. It includes overall `running`, `degraded`, or `offline` state; collector activity; the five canonical assets; telemetry freshness; and supported source freshness. It does not query Docker or claim that a reporting service is secure.
+
 ## Deployment warning
 
-Incident correlation and active response are not implemented. The local telemetry endpoint has no collector authentication and must not be exposed publicly. Production use requires authenticated collectors, TLS, durable queuing, retention controls, and cross-instance pub/sub.
+Incident correlation and active response are not implemented. The local shared collector key is not production authentication. Production use requires TLS, independently authenticated collectors, key rotation, durable queuing, retention controls, and cross-instance pub/sub.

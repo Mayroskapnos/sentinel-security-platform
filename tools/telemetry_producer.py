@@ -107,7 +107,7 @@ EVENT_TEMPLATES: tuple[dict[str, Any], ...] = (
 
 
 class TelemetryClient:
-    def __init__(self, target: str) -> None:
+    def __init__(self, target: str, collector_key: str | None = None) -> None:
         parsed = urlparse(target)
         if parsed.scheme not in {"http", "https"} or not parsed.hostname:
             raise ValueError("target must be an explicit http:// or https:// SENTINEL URL")
@@ -117,6 +117,7 @@ class TelemetryClient:
         self.host = parsed.hostname
         self.port = parsed.port
         self.base_path = parsed.path.rstrip("/")
+        self.collector_key = collector_key
         self.connection: http.client.HTTPConnection | None = None
 
     def _connect(self) -> http.client.HTTPConnection:
@@ -140,6 +141,11 @@ class TelemetryClient:
                         "Accept": "application/json",
                         "Content-Type": "application/json",
                         "Content-Length": str(len(body)),
+                        **(
+                            {"X-Sentinel-Collector-Key": self.collector_key}
+                            if self.collector_key
+                            else {}
+                        ),
                     },
                 )
                 response = connection.getresponse()
@@ -168,6 +174,9 @@ def generated_events() -> Iterator[dict[str, Any]]:
         event = dict(template)
         event["timestamp"] = datetime.now(UTC).isoformat().replace("+00:00", "Z")
         event["normalized_data"] = dict(template["normalized_data"])
+        event["normalized_data"]["origin"] = "synthetic"
+        event["normalized_data"]["simulated_source"] = event["source"]
+        event["source"] = "synthetic"
         event["raw_event"] = dict(template["raw_event"])
         yield event
 
@@ -178,7 +187,7 @@ def detection_demo_events(source_ip: str) -> Iterator[dict[str, Any]]:
         yield {
             "timestamp": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
             "event_type": "authentication",
-            "source": "detection_demo",
+            "source": "synthetic",
             "source_ip": source_ip,
             "destination_ip": "10.10.20.10",
             "source_port": 45_000 + attempt,
@@ -193,6 +202,8 @@ def detection_demo_events(source_ip: str) -> Iterator[dict[str, Any]]:
                 "authentication_method": "password",
                 "service": "ssh",
                 "synthetic": True,
+                "origin": "synthetic",
+                "mode": "detection_demo",
                 "attempt": attempt,
             },
             "raw_event": {"message": f"Synthetic failed SSH authentication attempt {attempt}"},
@@ -207,6 +218,11 @@ def parse_args() -> argparse.Namespace:
         "--target",
         default=os.getenv("SENTINEL_URL", "http://localhost:8000"),
         help="Explicit SENTINEL base URL (default: %(default)s)",
+    )
+    parser.add_argument(
+        "--collector-key",
+        default=os.getenv("COLLECTOR_API_KEY", "sentinel_local_collector_key_change_me"),
+        help="Collector ingestion key (default: COLLECTOR_API_KEY or local lab default)",
     )
     parser.add_argument(
         "--mode", choices=("single", "stream", "burst", "detection-demo"), default="single"
@@ -238,7 +254,7 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
-    client = TelemetryClient(args.target)
+    client = TelemetryClient(args.target, args.collector_key)
     interval = 0.0 if args.mode == "single" else args.interval
     print("SENTINEL Synthetic Telemetry Producer")
     print(f"Target: {args.target}")

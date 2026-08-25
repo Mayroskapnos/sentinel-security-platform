@@ -26,6 +26,8 @@ class Settings(BaseSettings):
         "http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173,http://127.0.0.1:5173"
     )
     telemetry_max_body_bytes: int = Field(default=262_144, ge=1, le=10_485_760)
+    collector_api_key: str | None = Field(default=None, min_length=16, max_length=512)
+    lab_telemetry_stale_seconds: int = Field(default=120, ge=30, le=3600)
     database_url: str = Field(
         default="postgresql+asyncpg://sentinel:sentinel_dev_only_change_me@localhost:5432/sentinel"
     )

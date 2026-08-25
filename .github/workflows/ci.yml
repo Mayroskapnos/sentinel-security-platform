@@ -69,8 +69,9 @@ jobs:
       - run: npm audit --audit-level=high
 
   compose:
-    name: Compose configuration
+    name: Compose and lab isolation configuration
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - run: docker compose config --quiet
+      - run: python tools/validate_lab_compose.py

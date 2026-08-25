@@ -4,6 +4,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.dependencies import verify_collector_key
 from app.db.session import get_db_session
 from app.schemas.common import Page
 from app.schemas.security_event import (
@@ -36,6 +37,7 @@ async def get_event(event_id: UUID, session: SessionDependency) -> SecurityEvent
     response_model=SecurityEventResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Ingest a normalized security event",
+    dependencies=[Depends(verify_collector_key)],
 )
 async def create_event(
     payload: SecurityEventCreate, session: SessionDependency

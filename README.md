@@ -4,7 +4,7 @@
 
 SENTINEL is an experimental security monitoring and Purple Team platform for controlled environments. It provides persistent asset inventory, normalized security-event storage, deterministic detections, evidence-backed alerts, live delivery, investigation workflows, and database-backed operational dashboards.
 
-> Current status: **Milestone 3 - Detection Engine**. Incident correlation, attack simulation, active response, and the corporate lab remain future milestones.
+> Current status: **Milestone 4 - Corporate Docker Lab**. Incident correlation, attack simulation, and active response remain future milestones.
 
 ## What is SENTINEL?
 
@@ -25,17 +25,24 @@ SENTINEL is a portfolio-grade exploration of the architecture behind SIEM, EDR/X
 - Automatic frontend reconnection, missed-event REST recovery, ID deduplication, and live row cues
 - Debounced dashboard and asset-detail updates through TanStack Query
 - Safe bounded synthetic producer with single, stream, burst, and detection-demo modes
+- Isolated DMZ, employee, server, and management Docker networks
+- Real corporate web, Linux host, SSH, sudo, PostgreSQL, network, and health telemetry
+- Read-only file-tail collector with persistent checkpoints and bounded retry backoff
+- Lightweight collector-key authentication for local event ingestion
+- Telemetry-derived Corporate Lab status UI and server-side source filtering
 - Database-side dashboard summary and aggregation queries
 - Idempotent demo seeding with five lab assets and 180 coherent historical events
 - Searchable Assets, Asset Details, Events, Alerts, Alert Detail, and Detection Rules workflows
 - Structured JSON logging and structured API errors
-- Loopback-bound Docker services running as unprivileged users
+- Loopback-bound published services; platform runtimes use unprivileged users
 
 ## Architecture
 
 ```mermaid
 flowchart LR
     Producer[Synthetic producer] -->|POST telemetry| API[FastAPI]
+    Lab[Corporate lab services] -->|actual logs| Collector[Collector and adapters]
+    Collector -->|POST telemetry| API
     API --> Normalizer[Event normalizer]
     Normalizer --> Service[Security event service]
     Service --> DB[(PostgreSQL 16)]
@@ -52,7 +59,7 @@ flowchart LR
     Seed[Deterministic demo seed] --> DB
 ```
 
-PostgreSQL remains the source of truth. WebSockets provide low-latency delivery; REST refetches repair any gap after reconnection. See [Architecture](docs/architecture.md), [Detection Engine](docs/detection-engine.md), [Telemetry](docs/telemetry.md), [API Reference](docs/api.md), and [Security Model](docs/security-model.md).
+PostgreSQL remains the source of truth. WebSockets provide low-latency delivery; REST refetches repair any gap after reconnection. See [Architecture](docs/architecture.md), [Corporate Lab](docs/corporate-lab.md), [Detection Engine](docs/detection-engine.md), [Telemetry](docs/telemetry.md), [API Reference](docs/api.md), and [Security Model](docs/security-model.md).
 
 ## Technology stack
 
@@ -69,14 +76,13 @@ PostgreSQL remains the source of truth. WebSockets provide low-latency delivery;
 Requirements:
 
 - Docker Desktop with Docker Compose
-- Ports `3000`, `8000`, and `5432` available on localhost, or customized in `.env`
+- Ports `3000`, `8000`, `8081`, and `5432` available on localhost, or customized in `.env`
 
 ```bash
 docker compose up --build -d
-docker compose exec -T backend python -m app.cli.seed
 ```
 
-The backend applies `alembic upgrade head` and synchronizes bundled rules before starting. Seeding is explicit and idempotent. The same commands work in PowerShell.
+The backend applies migrations, synchronizes bundled rules, and synchronizes the five canonical lab assets before starting. Historical synthetic seeding remains optional and idempotent. The same command works in PowerShell.
 
 Open:
 
@@ -84,10 +90,40 @@ Open:
 - Events: <http://localhost:3000/events>
 - Alerts: <http://localhost:3000/alerts>
 - Detection rules: <http://localhost:3000/rules>
+- System and lab status: <http://localhost:3000/system>
+- Corporate lab portal: <http://localhost:8081>
 - API health: <http://localhost:8000/api/v1/health>
 - OpenAPI: <http://localhost:8000/api/docs>
 
 The Compose defaults work without an `.env` file. Copy `.env.example` to `.env` to customize local values.
+
+## Corporate Lab
+
+The corporate lab is an isolated local environment built specifically for SENTINEL development and demonstration. A normal start runs ten containers: the three SENTINEL platform services, five corporate services, one collector, and one hardened localhost portal gateway. Lab PostgreSQL is completely separate from the PostgreSQL that stores SENTINEL assets, events, rules, and alerts.
+
+```text
+Actual web / Linux / SSH / sudo / PostgreSQL logs
+    -> read-only collector adapters
+    -> authenticated Telemetry API
+    -> SecurityEvent
+    -> WebSocket + Detection Engine
+    -> Events / Alerts UI
+```
+
+Useful commands:
+
+```bash
+make lab-up
+make lab-status
+make lab-logs
+make lab-activity-web
+make lab-activity-auth
+make lab-activity-privilege
+make lab-activity-db
+make test-lab
+```
+
+The background activity rate is a few internal events per minute. It does not scan, brute force, exploit, or contact arbitrary internet services. Sudo and direct workstation-to-database actions are explicit only. `make lab-reset` removes only corporate-lab containers and volumes; it preserves SENTINEL security history. See [Corporate Lab](docs/corporate-lab.md) for topology, fictional credentials, isolation, and limitations.
 
 ## Live telemetry
 
@@ -152,7 +188,7 @@ Equivalent Make targets are `make migrate`, `make seed`, `make demo`, and `make 
 | `admin-server` | Server | Server | `10.10.30.10` |
 | `database` | Database | Server | `10.10.30.20` |
 
-These are inventory records only. The corporate lab containers remain outside Milestone 3.
+These identities are synchronized at startup and correspond directly to the running Milestone 4 containers. `python -m app.cli.seed` remains optional for adding historical synthetic events.
 
 ## Local development
 
@@ -220,14 +256,14 @@ Backend tests use an isolated in-memory database. Migration validation runs agai
 
 ## Security model
 
-Published services bind to `127.0.0.1`. The telemetry API accepts normalized defensive data and evaluates deterministic rules, but performs no collection, scanning, arbitrary code execution, or offensive action. WebSocket browser origins are allow-listed for local development. A real deployment must add collector authentication, TLS, durable delivery, and production ingress controls before exposing ingestion.
+Published services bind to `127.0.0.1`; a hardened fixed-upstream gateway is the safe lab portal's only host ingress, while the web app itself has no host binding. Lab networks are internal, the collector uses read-only named log volumes, and no service mounts the Docker socket. The telemetry API accepts normalized defensive data and evaluates deterministic rules, but performs no scanning or offensive action. WebSocket browser origins are allow-listed and local ingestion uses a shared collector key. A real deployment still requires TLS, independent collector identities, key rotation, durable delivery, and production ingress controls.
 
 ## Roadmap
 
 1. **SENTINEL Core - complete:** persistent assets/events, normalized storage APIs, investigation UI, and dashboard aggregates
 2. **Live Telemetry - complete:** dedicated ingestion, asset resolution, WebSocket delivery, live query updates, and synthetic producer
 3. **Detection Engine - complete:** deterministic rules, suppression, evidence-backed alerts, live delivery, and analyst workflows
-4. **Corporate Docker Lab:** isolated enterprise service simulations
+4. **Corporate Docker Lab - complete:** isolated enterprise services, real logs, collectors, status, and detection integration
 5. **Attack Simulator:** safe, allow-listed scenarios
 6. **Network Topology:** backend-driven graph
 7. **Incident Correlation:** timelines and multi-stage breach scenario

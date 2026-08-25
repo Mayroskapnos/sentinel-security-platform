@@ -80,6 +80,7 @@ class SecurityEventFilters(BaseModel):
     hostname: str | None = Field(default=None, max_length=255)
     asset_id: UUID | None = None
     event_type: str | None = Field(default=None, max_length=64)
+    source: str | None = Field(default=None, max_length=64)
     severity: EventSeverity | None = None
     source_ip: str | None = None
     destination_ip: str | None = None

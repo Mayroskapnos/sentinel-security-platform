@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import NotFoundError
 from app.models.asset import Asset
+from app.models.enums import AssetStatus
 from app.models.security_event import SecurityEvent
 from app.repositories.assets import AssetRepository
 from app.repositories.events import SecurityEventRepository
@@ -51,6 +52,8 @@ class SecurityEventService:
             values["hostname"] = values["hostname"] or asset.hostname
             if normalized.timestamp > self._as_utc(asset.last_seen):
                 asset.last_seen = normalized.timestamp
+            if normalized.normalized_data.get("origin") == "corporate_lab":
+                asset.status = AssetStatus.ONLINE
 
         event = SecurityEvent(**values)
         try:

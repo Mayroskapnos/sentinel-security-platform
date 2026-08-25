@@ -4,6 +4,7 @@ from unittest.mock import AsyncMock
 import httpx
 import pytest
 
+from app.core.config import get_settings
 from app.realtime.manager import websocket_manager
 from app.schemas.realtime import SecurityEventMessage
 from app.services.events import SecurityEventService
@@ -168,6 +169,29 @@ async def test_oversized_telemetry_is_rejected(client: httpx.AsyncClient) -> Non
     )
     assert response.status_code == 413
     assert response.json()["error"]["code"] == "TELEMETRY_PAYLOAD_TOO_LARGE"
+
+
+@pytest.mark.asyncio
+async def test_configured_collector_key_protects_ingestion(
+    client: httpx.AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(get_settings(), "collector_api_key", "test-collector-key-1234")
+
+    missing = await client.post("/api/v1/telemetry/events", json=event_payload())
+    invalid = await client.post(
+        "/api/v1/telemetry/events",
+        headers={"X-Sentinel-Collector-Key": "wrong-key"},
+        json=event_payload(),
+    )
+    accepted = await client.post(
+        "/api/v1/telemetry/events",
+        headers={"X-Sentinel-Collector-Key": "test-collector-key-1234"},
+        json=event_payload(),
+    )
+
+    assert missing.status_code == invalid.status_code == 401
+    assert missing.json()["error"]["code"] == "COLLECTOR_AUTHENTICATION_FAILED"
+    assert accepted.status_code == 201
 
 
 @pytest.mark.asyncio

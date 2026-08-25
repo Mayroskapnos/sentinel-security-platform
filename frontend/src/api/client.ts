@@ -10,6 +10,7 @@ import type {
   DetectionRule,
   DetectionRuleFilters,
   EventFilters,
+  LabStatus,
   Page,
   SecurityEvent,
 } from "../types/core";
@@ -78,6 +79,10 @@ function queryString<T extends object>(parameters: T): string {
 
 export function getHealth(): Promise<HealthResponse> {
   return request<HealthResponse>("/health");
+}
+
+export function getLabStatus(): Promise<LabStatus> {
+  return request<LabStatus>("/lab/status");
 }
 
 export function getAssets(filters: AssetFilters): Promise<Page<Asset>> {

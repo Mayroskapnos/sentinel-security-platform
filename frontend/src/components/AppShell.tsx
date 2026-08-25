@@ -109,15 +109,19 @@ export function AppShell({ children }: { children: ReactNode }) {
         <Navigation />
 
         <div className="border-t border-line p-3">
-          <button
-            className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-muted"
-            disabled
-            title="Available in a later milestone"
-            type="button"
+          <NavLink
+            className={({ isActive }) =>
+              `flex w-full items-center gap-3 rounded-lg border px-3 py-2.5 text-sm transition-colors ${
+                isActive
+                  ? "border-accent/20 bg-accent/10 font-medium text-accent"
+                  : "border-transparent text-muted hover:bg-white/[0.035] hover:text-slate-200"
+              }`
+            }
+            to="/system"
           >
             <Settings className="size-[18px]" strokeWidth={1.8} />
             System
-          </button>
+          </NavLink>
           <div className="mt-2 flex items-center gap-3 rounded-lg border border-line bg-black/10 p-3">
             <CircleDotDashed className="size-5 text-accent" />
             <div>

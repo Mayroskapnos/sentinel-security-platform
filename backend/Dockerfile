@@ -9,6 +9,8 @@ WORKDIR /app
 
 RUN addgroup --system sentinel && adduser --system --ingroup sentinel sentinel
 
+RUN install -d -o sentinel -g sentinel /var/lib/sentinel-collector
+
 COPY requirements.txt ./
 RUN python -m pip install --requirement requirements.txt
 
@@ -20,4 +22,4 @@ USER sentinel
 
 EXPOSE 8000
 
-CMD ["sh", "-c", "alembic upgrade head && python -m app.cli.sync_rules && uvicorn app.main:app --host 0.0.0.0 --port 8000"]
+CMD ["sh", "-c", "alembic upgrade head && python -m app.cli.sync_rules && python -m app.cli.sync_lab_assets && uvicorn app.main:app --host 0.0.0.0 --port 8000"]

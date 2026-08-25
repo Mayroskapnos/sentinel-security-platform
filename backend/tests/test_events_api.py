@@ -40,6 +40,7 @@ async def test_event_filters(client: httpx.AsyncClient) -> None:
         "/api/v1/events",
         json=event_payload(
             event_type="process_execution",
+            source="linux_process",
             severity="informational",
             status="success",
             source_ip=None,
@@ -49,11 +50,17 @@ async def test_event_filters(client: httpx.AsyncClient) -> None:
 
     response = await client.get(
         "/api/v1/events",
-        params={"event_type": "authentication", "severity": "medium", "status": "failed"},
+        params={
+            "event_type": "authentication",
+            "source": "linux_auth",
+            "severity": "medium",
+            "status": "failed",
+        },
     )
     assert response.status_code == 200
     assert response.json()["total"] == 1
     assert response.json()["items"][0]["event_type"] == "authentication"
+    assert response.json()["items"][0]["source"] == "linux_auth"
 
 
 @pytest.mark.asyncio

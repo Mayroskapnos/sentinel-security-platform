@@ -3,6 +3,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Header, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.dependencies import verify_collector_key
 from app.core.config import get_settings
 from app.core.errors import AppError
 from app.db.session import get_db_session
@@ -30,7 +31,7 @@ def validate_content_length(
     response_model=SecurityEventResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Ingest and broadcast normalized machine telemetry",
-    dependencies=[Depends(validate_content_length)],
+    dependencies=[Depends(validate_content_length), Depends(verify_collector_key)],
 )
 async def ingest_telemetry_event(
     payload: SecurityEventCreate,

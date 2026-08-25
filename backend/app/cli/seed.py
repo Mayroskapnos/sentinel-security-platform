@@ -3,102 +3,19 @@ import asyncio
 import logging
 from datetime import UTC, datetime, timedelta
 from typing import Any
-from uuid import UUID, uuid5
 
 from sqlalchemy import delete, select
 
 from app.core.config import get_settings
 from app.core.logging import configure_logging
 from app.db.session import async_session_factory, close_database
+from app.lab.assets import LAB_ASSETS as DEMO_ASSETS
+from app.lab.assets import stable_id
 from app.models.asset import Asset
-from app.models.enums import AssetStatus, AssetType, Criticality, EventSeverity
+from app.models.enums import EventSeverity
 from app.models.security_event import SecurityEvent
 
 logger = logging.getLogger(__name__)
-SEED_NAMESPACE = UUID("8abda546-b4e1-4c61-bd99-09921736e38d")
-
-
-def stable_id(name: str) -> UUID:
-    return uuid5(SEED_NAMESPACE, name)
-
-
-DEMO_ASSETS: list[dict[str, Any]] = [
-    {
-        "id": stable_id("asset-web-server"),
-        "hostname": "web-server",
-        "display_name": "Public Web Server",
-        "ip_address": "10.10.10.10",
-        "mac_address": "02:42:0a:0a:0a:10",
-        "asset_type": AssetType.WEB_SERVER,
-        "operating_system": "Ubuntu Server 24.04 LTS",
-        "environment": "lab",
-        "network_zone": "dmz",
-        "status": AssetStatus.WARNING,
-        "risk_score": 44,
-        "criticality": Criticality.HIGH,
-        "metadata_json": {"owner": "Web Operations", "service": "customer-portal"},
-    },
-    {
-        "id": stable_id("asset-employee-01"),
-        "hostname": "employee-01",
-        "display_name": "Employee Workstation 01",
-        "ip_address": "10.10.20.10",
-        "mac_address": "02:42:0a:0a:14:10",
-        "asset_type": AssetType.WORKSTATION,
-        "operating_system": "Ubuntu Desktop 24.04 LTS",
-        "environment": "lab",
-        "network_zone": "employee",
-        "status": AssetStatus.ONLINE,
-        "risk_score": 36,
-        "criticality": Criticality.MEDIUM,
-        "metadata_json": {"owner": "Demo User", "department": "Engineering"},
-    },
-    {
-        "id": stable_id("asset-employee-02"),
-        "hostname": "employee-02",
-        "display_name": "Employee Workstation 02",
-        "ip_address": "10.10.20.11",
-        "mac_address": "02:42:0a:0a:14:11",
-        "asset_type": AssetType.WORKSTATION,
-        "operating_system": "Ubuntu Desktop 24.04 LTS",
-        "environment": "lab",
-        "network_zone": "employee",
-        "status": AssetStatus.ONLINE,
-        "risk_score": 18,
-        "criticality": Criticality.MEDIUM,
-        "metadata_json": {"owner": "Operations User", "department": "Operations"},
-    },
-    {
-        "id": stable_id("asset-admin-server"),
-        "hostname": "admin-server",
-        "display_name": "Administrative Server",
-        "ip_address": "10.10.30.10",
-        "mac_address": "02:42:0a:0a:1e:10",
-        "asset_type": AssetType.SERVER,
-        "operating_system": "Debian 13",
-        "environment": "lab",
-        "network_zone": "server",
-        "status": AssetStatus.WARNING,
-        "risk_score": 67,
-        "criticality": Criticality.CRITICAL,
-        "metadata_json": {"owner": "Infrastructure", "role": "administration"},
-    },
-    {
-        "id": stable_id("asset-database"),
-        "hostname": "database",
-        "display_name": "Application Database",
-        "ip_address": "10.10.30.20",
-        "mac_address": "02:42:0a:0a:1e:20",
-        "asset_type": AssetType.DATABASE,
-        "operating_system": "PostgreSQL 16 on Alpine Linux",
-        "environment": "lab",
-        "network_zone": "server",
-        "status": AssetStatus.ONLINE,
-        "risk_score": 52,
-        "criticality": Criticality.CRITICAL,
-        "metadata_json": {"owner": "Data Platform", "service": "application-data"},
-    },
-]
 
 
 def event_template(index: int) -> dict[str, Any]:
@@ -310,6 +227,7 @@ async def seed_demo(reset: bool = False) -> tuple[int, int]:
             payload["normalized_data"] = {
                 **payload["normalized_data"],
                 "demo_seed": True,
+                "origin": "synthetic",
                 "sequence": index,
             }
             session.add(

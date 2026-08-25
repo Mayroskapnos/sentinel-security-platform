@@ -1,4 +1,4 @@
-.PHONY: setup dev up down logs test lint build config migrate rules seed demo reset telemetry telemetry-burst detection-demo clean
+.PHONY: setup dev up down logs test lint build config migrate rules seed demo reset telemetry telemetry-burst detection-demo lab-up lab-down lab-logs lab-status lab-reset lab-activity-web lab-activity-db lab-activity-auth lab-activity-privilege test-lab clean
 
 setup:
 	@test -f .env || cp .env.example .env
@@ -30,6 +30,7 @@ build:
 
 config:
 	docker compose config --quiet
+	python tools/validate_lab_compose.py
 
 migrate:
 	docker compose exec -T backend alembic upgrade head
@@ -53,6 +54,36 @@ telemetry-burst:
 
 detection-demo:
 	python tools/telemetry_producer.py --mode detection-demo
+
+lab-up:
+	docker compose up --build -d
+
+lab-down:
+	docker compose stop sentinel-collector sentinel-lab-gateway sentinel-employee-01 sentinel-employee-02 sentinel-admin sentinel-web sentinel-db
+
+lab-logs:
+	docker compose logs -f sentinel-collector sentinel-lab-gateway sentinel-employee-01 sentinel-employee-02 sentinel-admin sentinel-web sentinel-db
+
+lab-status:
+	docker compose ps sentinel-collector sentinel-lab-gateway sentinel-employee-01 sentinel-employee-02 sentinel-admin sentinel-web sentinel-db
+
+lab-reset:
+	python tools/lab_reset.py
+
+lab-activity-web:
+	docker compose exec -T sentinel-employee-01 python /app/agent.py activity web
+
+lab-activity-db:
+	docker compose exec -T sentinel-employee-01 python /app/agent.py activity database
+
+lab-activity-auth:
+	docker compose exec -T sentinel-employee-01 python /app/agent.py activity auth-success
+
+lab-activity-privilege:
+	docker compose exec -T sentinel-admin python /app/agent.py activity privilege
+
+test-lab:
+	python tools/lab_integration_test.py
 
 clean:
 	docker compose down --remove-orphans

@@ -195,6 +195,7 @@ export function eventMatchesFilters(
   if (filters.asset_id && event.asset_id !== filters.asset_id) return false;
   if (filters.event_type && event.event_type !== filters.event_type)
     return false;
+  if (filters.source && event.source !== filters.source) return false;
   if (filters.severity && event.severity !== filters.severity) return false;
   if (filters.source_ip && event.source_ip !== filters.source_ip) return false;
   if (

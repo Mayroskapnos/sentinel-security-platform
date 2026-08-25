@@ -14,6 +14,7 @@ import {
   getDashboardSummary,
   getEvent,
   getEvents,
+  getLabStatus,
   getRule,
   getRules,
   updateAlert,
@@ -57,6 +58,9 @@ export const queryKeys = {
     all: ["dashboard"] as const,
     summary: ["dashboard", "summary"] as const,
     activity: (hours: number) => ["dashboard", "activity", hours] as const,
+  },
+  lab: {
+    status: ["lab", "status"] as const,
   },
 };
 
@@ -168,5 +172,13 @@ export function useDashboardActivity(hours = 72) {
   return useQuery({
     queryKey: queryKeys.dashboard.activity(hours),
     queryFn: () => getDashboardActivity(hours),
+  });
+}
+
+export function useLabStatus() {
+  return useQuery({
+    queryKey: queryKeys.lab.status,
+    queryFn: getLabStatus,
+    refetchInterval: 15_000,
   });
 }

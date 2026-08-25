@@ -1,12 +1,14 @@
 # Live Telemetry
 
-SENTINEL transports normalized security observations, displays them live, and evaluates them with deterministic Milestone 3 rules. It does not correlate alerts into incidents or take active response actions.
+SENTINEL transports normalized security observations from both real corporate-lab services and the optional synthetic producer, displays them live, and evaluates them with deterministic rules. It does not correlate alerts into incidents or take active response actions.
 
 ## Pipeline
 
 ```mermaid
 flowchart LR
     Producer[Synthetic producer]
+    Lab[Corporate lab services]
+    Collector[Collector and source adapters]
     API[Telemetry ingestion API]
     Normalizer[EventNormalizer]
     Service[SecurityEventService]
@@ -18,6 +20,8 @@ flowchart LR
     UI[React + TanStack Query]
 
     Producer --> API
+    Lab --> Collector
+    Collector --> API
     API --> Normalizer
     Normalizer --> Service
     Service --> DB
@@ -31,11 +35,28 @@ flowchart LR
     DB -->|REST authority| UI
 ```
 
-The canonical `SecurityEvent` remains the only event representation. The telemetry and stored-resource POST routes share `EventIngestionService`; future source adapters should produce the existing `SecurityEventCreate` contract instead of manipulating ORM entities. GETs and WebSocket reconnects never invoke detection.
+The canonical `SecurityEvent` remains the only event representation. The telemetry and stored-resource POST routes share `EventIngestionService`; every lab adapter produces the existing `SecurityEventCreate` contract instead of manipulating ORM entities. GETs and WebSocket reconnects never invoke detection.
+
+## Corporate lab telemetry
+
+Real activity is written by the service that observed or performed it, then parsed by a separate collector:
+
+- `WebAccessAdapter`: actual FastAPI request records.
+- `WebAuthenticationAdapter`: actual portal login decisions.
+- `LinuxAuthAdapter`: OpenSSH authentication output.
+- `ProcessAdapter`: results from actually executed controlled commands.
+- `SudoAdapter`: an actual allow-listed sudo command result.
+- `PostgresAdapter`: native PostgreSQL JSON connection, query-category, and disconnection logs.
+- `NetworkConnectionAdapter`: the result of a known real internal client operation; no packet sniffing.
+- `ServiceHealthAdapter`: low-rate service heartbeat telemetry.
+
+Source timestamps are required and normalized to UTC. `raw_event` preserves the relevant source record after secret-field redaction. `normalized_data.origin` is `corporate_lab`; synthetic records use `synthetic`. PostgreSQL connection events explicitly state that connection evidence does not assert collection.
+
+The collector maintains a file fingerprint and byte offset per source, retries temporary API failures with backoff capped at 30 seconds, and never advances a failed delivery. This is pragmatic single-node buffering, not a durable queue.
 
 ## Normalized input
 
-Send one timezone-aware ISO 8601 event to `POST /api/v1/telemetry/events`. Categorical text and hostnames are trimmed and normalized, IP addresses and ports are validated, timestamps are converted to UTC, and raw JSON is stored without evaluation. The UI renders evidence through React text/JSON escaping and never injects raw HTML.
+Send one timezone-aware ISO 8601 event to `POST /api/v1/telemetry/events`. When `COLLECTOR_API_KEY` is configured, include it as `X-Sentinel-Collector-Key`. Categorical text and hostnames are trimmed and normalized, IP addresses and ports are validated, timestamps are converted to UTC, and raw JSON is stored without evaluation. The UI renders evidence through React text/JSON escaping and never injects raw HTML.
 
 Asset resolution uses this order:
 
@@ -73,4 +94,4 @@ python tools/telemetry_producer.py --mode burst --count 100
 
 ## Production limitations
 
-The platform intentionally has no collector authentication, TLS deployment, durable event queue, high-volume stream processing, agent management, retention policy, incident correlation, or cross-instance WebSocket distribution. Keep the default services loopback-bound and do not publish telemetry ingestion as an unauthenticated production API.
+The shared collector key is development-grade. The platform intentionally has no TLS deployment, per-collector identity, durable message broker, high-volume stream processing, agent management, retention policy, incident correlation, or cross-instance WebSocket distribution. Keep the default services loopback-bound and do not expose the lab or ingestion boundary as a production service.
