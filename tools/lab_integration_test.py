@@ -131,9 +131,7 @@ def main() -> int:
     print(f"process_event_id={process_event['id']}")
     print(f"database_event_id={database_event['id']}")
     print(f"database_alert_id={alert['id']}")
-    print(
-        f"lab_assets_online={lab_status.get('active_assets')}/{lab_status.get('total_assets')}"
-    )
+    print(f"lab_assets_online={lab_status.get('active_assets')}/{lab_status.get('total_assets')}")
     return 0
 
 
