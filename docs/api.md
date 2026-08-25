@@ -61,6 +61,7 @@ Filters:
 
 - `hostname`
 - `asset_id`
+- `scenario_run_id`
 - `event_type`
 - `source`
 - `severity`
@@ -154,6 +155,8 @@ Committed events use:
 
 `data` contains the complete `SecurityEventResponse`; the shortened example highlights its identifying fields. Committed alerts use the same versioned envelope with `type: alert_created` or `type: alert_updated` and a complete `AlertResponse`. Messages are versioned, browser origins are allow-listed, and disconnected clients are removed independently. The socket does not replay missed messages; clients refetch REST data after reconnecting.
 
+Controlled scenario progress uses the same version `1` envelope with `simulation_started`, `simulation_step`, `simulation_finished`, `simulation_failed`, or `simulation_cancelled`. The data contains backend-owned `run_id`, `scenario_id`, status, current/total step, label, and message. These messages never replace SecurityEvents or Alerts.
+
 ## Alerts
 
 ### `GET /api/v1/alerts`
@@ -198,6 +201,36 @@ Accepts `hours` from 1 through 168 (default 72) and returns hourly counts, sever
 
 Returns Corporate Lab v0.1 status inferred from recent real-lab telemetry. It includes overall `running`, `degraded`, or `offline` state; collector activity; the five canonical assets; telemetry freshness; and supported source freshness. It does not query Docker or claim that a reporting service is secure.
 
+## Controlled Attack Simulator
+
+### `GET /api/v1/simulator/status`
+
+Returns configuration availability, `disabled`, `unavailable`, `idle`, or `running` state, and the active persistent run when present.
+
+### `GET /api/v1/simulator/scenarios`
+
+Lists repository-defined scenario metadata: ID, name, description, low-risk designation, estimated seconds, logical lab targets, expected rule IDs, and step count.
+
+### `GET /api/v1/simulator/scenarios/{scenario_id}`
+
+Adds the validated declarative steps. Definitions contain no raw infrastructure addresses or executable text.
+
+### `POST /api/v1/simulator/run/{scenario_id}`
+
+Starts a predefined scenario and accepts no request body or target parameters. It returns `202` with the persistent pending run. Preconditions include enabled configuration, available broker, online required lab assets, active collector, enabled expected rules, and no active run. Conflicts return `409 SCENARIO_ALREADY_RUNNING`; disabled/unavailable prerequisites return structured `503` errors.
+
+### `GET /api/v1/simulator/runs`
+
+Returns newest-first persistent history with bounded `page` and `page_size`. Each run includes step state, event/alert counts, expected-versus-observed detection rows, and attributed alert references.
+
+### `GET /api/v1/simulator/runs/{run_id}`
+
+Returns authoritative live or historical run detail. Counts and observations are computed server-side from `scenario_run_id` and relational alert evidence.
+
+### `POST /api/v1/simulator/runs/{run_id}/cancel`
+
+Cancels future execution of an active backend-owned run. No request body is accepted. Existing SecurityEvents and Alerts remain.
+
 ## Deployment warning
 
-Incident correlation and active response are not implemented. The local shared collector key is not production authentication. Production use requires TLS, independently authenticated collectors, key rotation, durable queuing, retention controls, and cross-instance pub/sub.
+Incident correlation, the Attack Map, and active response are not implemented. The local shared keys are not production authentication. Production use requires user authorization, TLS, independently authenticated services, key rotation, durable queuing, retention controls, and cross-instance pub/sub.

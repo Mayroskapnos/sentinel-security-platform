@@ -34,7 +34,7 @@ const primaryNavigation: NavigationItem[] = [
   { label: "Incidents", icon: ShieldCheck },
   { label: "Attack Map", icon: Network },
   { label: "Detection Rules", icon: ScrollText, to: "/rules" },
-  { label: "Attack Simulator", icon: Crosshair },
+  { label: "Attack Simulator", icon: Crosshair, to: "/simulator" },
 ];
 
 function Navigation({ compact = false }: { compact?: boolean }) {

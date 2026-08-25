@@ -28,6 +28,14 @@ class Settings(BaseSettings):
     telemetry_max_body_bytes: int = Field(default=262_144, ge=1, le=10_485_760)
     collector_api_key: str | None = Field(default=None, min_length=16, max_length=512)
     lab_telemetry_stale_seconds: int = Field(default=120, ge=30, le=3600)
+    sentinel_simulator_enabled: bool = False
+    sentinel_simulation_key: str = Field(
+        default="sentinel_local_simulation_key_change_me", min_length=16, max_length=512
+    )
+    simulator_control_url: str = "http://sentinel-lab-gateway:8082"
+    simulator_action_timeout_seconds: int = Field(default=40, ge=1, le=60)
+    simulator_scenario_timeout_seconds: int = Field(default=180, ge=30, le=300)
+    simulator_settle_seconds: int = Field(default=4, ge=0, le=10)
     database_url: str = Field(
         default="postgresql+asyncpg://sentinel:sentinel_dev_only_change_me@localhost:5432/sentinel"
     )

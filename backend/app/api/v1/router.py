@@ -7,12 +7,14 @@ from app.api.v1.routes.detection_rules import router as detection_rules_router
 from app.api.v1.routes.events import router as events_router
 from app.api.v1.routes.health import router as health_router
 from app.api.v1.routes.lab import router as lab_router
+from app.api.v1.routes.simulator import router as simulator_router
 from app.api.v1.routes.telemetry import router as telemetry_router
 from app.api.v1.routes.websockets import router as websockets_router
 
 api_router = APIRouter()
 api_router.include_router(health_router)
 api_router.include_router(lab_router)
+api_router.include_router(simulator_router)
 api_router.include_router(alerts_router)
 api_router.include_router(detection_rules_router)
 api_router.include_router(assets_router)

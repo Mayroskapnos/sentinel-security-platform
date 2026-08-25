@@ -1,0 +1,11 @@
+id: SCN-002
+name: Internal Service Discovery
+description: Attempts connections to a compiled list of ten known Corporate Lab service ports from employee-01.
+risk: low
+estimated_seconds: 12
+targets: [employee-01, web-server, admin-server, database]
+expected_detections: [DET-NET-001]
+steps:
+  - name: Fixed internal service activity
+    action: internal_service_discovery
+    target: employee-01

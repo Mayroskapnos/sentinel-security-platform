@@ -11,5 +11,8 @@ AllowUsers demo-user ops-user admin-demo
 PrintMotd no
 PrintLastLog no
 LogLevel VERBOSE
+# The isolated lab generates at most 15 reviewed attempts. Disable OpenSSH's
+# source penalty so all bounded attempts produce telemetry within rule windows.
+PerSourcePenalties no
 PidFile /run/sshd.pid
 Subsystem sftp internal-sftp

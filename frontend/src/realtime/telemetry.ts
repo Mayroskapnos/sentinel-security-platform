@@ -42,11 +42,32 @@ export interface AlertUpdatedMessage {
   data: Alert;
 }
 
+export interface SimulationMessage {
+  version: "1";
+  type:
+    | "simulation_started"
+    | "simulation_step"
+    | "simulation_finished"
+    | "simulation_failed"
+    | "simulation_cancelled";
+  timestamp: string;
+  data: {
+    run_id: string;
+    scenario_id: string;
+    status: string;
+    current_step: number;
+    total_steps: number;
+    label: string | null;
+    message: string | null;
+  };
+}
+
 export type TelemetryMessage =
   | SecurityEventMessage
   | TelemetryStatusMessage
   | AlertCreatedMessage
-  | AlertUpdatedMessage;
+  | AlertUpdatedMessage
+  | SimulationMessage;
 
 const severities = new Set<EventSeverity>([
   "informational",
@@ -108,6 +129,8 @@ function isSecurityEvent(value: unknown): value is SecurityEvent {
     isRecord(value.raw_event) &&
     isRecord(value.normalized_data) &&
     isNullableString(value.asset_id) &&
+    isNullableString(value.scenario_run_id) &&
+    isNullableString(value.scenario_id) &&
     isAssetReference(value.asset) &&
     typeof value.created_at === "string"
   );
@@ -179,6 +202,24 @@ export function parseTelemetryMessage(raw: string): TelemetryMessage | null {
   }
   if (parsed.type === "alert_updated" && isAlert(parsed.data)) {
     return parsed as unknown as AlertUpdatedMessage;
+  }
+  if (
+    [
+      "simulation_started",
+      "simulation_step",
+      "simulation_finished",
+      "simulation_failed",
+      "simulation_cancelled",
+    ].includes(String(parsed.type)) &&
+    typeof parsed.data.run_id === "string" &&
+    typeof parsed.data.scenario_id === "string" &&
+    typeof parsed.data.status === "string" &&
+    typeof parsed.data.current_step === "number" &&
+    typeof parsed.data.total_steps === "number" &&
+    isNullableString(parsed.data.label) &&
+    isNullableString(parsed.data.message)
+  ) {
+    return parsed as unknown as SimulationMessage;
   }
   return null;
 }

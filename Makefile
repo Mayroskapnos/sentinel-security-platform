@@ -1,4 +1,4 @@
-.PHONY: setup dev up down logs test lint build config migrate rules seed demo reset telemetry telemetry-burst detection-demo lab-up lab-down lab-logs lab-status lab-reset lab-activity-web lab-activity-db lab-activity-auth lab-activity-privilege test-lab clean
+.PHONY: setup dev up down logs test lint build config migrate rules seed demo reset telemetry telemetry-burst detection-demo lab-up lab-down lab-logs lab-status lab-reset lab-activity-web lab-activity-db lab-activity-auth lab-activity-privilege simulator-status scenario-list scenario-run scenario-history validate-scenarios test-lab clean
 
 setup:
 	@test -f .env || cp .env.example .env
@@ -22,7 +22,7 @@ test:
 	cd backend && python -m pytest
 
 lint:
-	cd backend && ruff check . ../tools && ruff format --check . ../tools
+	cd backend && ruff check . ../tools ../lab && ruff format --check . ../tools ../lab
 	cd frontend && npm run lint && npm run typecheck
 
 build:
@@ -81,6 +81,22 @@ lab-activity-auth:
 
 lab-activity-privilege:
 	docker compose exec -T sentinel-admin python /app/agent.py activity privilege
+
+simulator-status:
+	curl --fail --silent http://127.0.0.1:8000/api/v1/simulator/status
+
+scenario-list:
+	curl --fail --silent http://127.0.0.1:8000/api/v1/simulator/scenarios
+
+scenario-run:
+	@test -n "$(SCENARIO)" || (echo "SCENARIO is required, for example SCENARIO=SCN-001" && exit 2)
+	curl --fail --silent --request POST http://127.0.0.1:8000/api/v1/simulator/run/$(SCENARIO)
+
+scenario-history:
+	curl --fail --silent http://127.0.0.1:8000/api/v1/simulator/runs
+
+validate-scenarios:
+	cd backend && python -m app.cli.validate_scenarios
 
 test-lab:
 	python tools/lab_integration_test.py

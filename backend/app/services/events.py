@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.errors import NotFoundError
 from app.models.asset import Asset
 from app.models.enums import AssetStatus
+from app.models.scenario_run import ScenarioRun
 from app.models.security_event import SecurityEvent
 from app.repositories.assets import AssetRepository
 from app.repositories.events import SecurityEventRepository
@@ -44,6 +45,7 @@ class SecurityEventService:
 
     async def create(self, payload: SecurityEventCreate) -> SecurityEventResponse:
         normalized = EventNormalizer.normalize(payload.model_dump())
+        await self._validate_scenario_attribution(normalized)
         asset = await self._resolve_asset(normalized)
 
         values = normalized.model_dump()
@@ -63,6 +65,29 @@ class SecurityEventService:
             await self.session.rollback()
             raise
         return SecurityEventResponse.model_validate(event)
+
+    async def _validate_scenario_attribution(self, event: SecurityEventCreate) -> None:
+        if event.scenario_run_id is None and event.scenario_id is None:
+            return
+        run = (
+            await self.session.get(ScenarioRun, event.scenario_run_id)
+            if event.scenario_run_id
+            else None
+        )
+        if run is not None and run.scenario_id == event.scenario_id:
+            normalized_data = dict(event.normalized_data)
+            normalized_data["scenario_run_id"] = str(run.id)
+            normalized_data["scenario_id"] = run.scenario_id
+            event.normalized_data = normalized_data
+            return
+        logger.warning("event_scenario_attribution_rejected")
+        event.scenario_run_id = None
+        event.scenario_id = None
+        normalized_data = dict(event.normalized_data)
+        normalized_data.pop("scenario_run_id", None)
+        normalized_data.pop("scenario_id", None)
+        normalized_data["scenario_attribution_rejected"] = True
+        event.normalized_data = normalized_data
 
     async def _resolve_asset(self, event: SecurityEventCreate) -> Asset | None:
         asset = None

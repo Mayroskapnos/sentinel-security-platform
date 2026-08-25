@@ -35,9 +35,17 @@ def redact(value: Any) -> Any:
 
 
 def event(**values: Any) -> SecurityEventCreate:
+    raw_event = values.get("raw_event")
+    scenario_run_id = values.get("scenario_run_id")
+    scenario_id = values.get("scenario_id")
+    if isinstance(raw_event, Mapping):
+        scenario_run_id = raw_event.get("scenario_run_id") or scenario_run_id
+        scenario_id = raw_event.get("scenario_id") or scenario_id
     normalized_data = {
         "origin": "corporate_lab",
         "lab_version": "0.1",
+        **({"scenario_run_id": scenario_run_id} if scenario_run_id else {}),
+        **({"scenario_id": scenario_id} if scenario_id else {}),
         **values.pop("normalized_data", {}),
     }
     return SecurityEventCreate.model_validate(
@@ -51,6 +59,8 @@ def event(**values: Any) -> SecurityEventCreate:
             "process_name": None,
             "severity": "informational",
             "raw_event": {},
+            "scenario_run_id": scenario_run_id,
+            "scenario_id": scenario_id,
             **values,
             "normalized_data": normalized_data,
         }

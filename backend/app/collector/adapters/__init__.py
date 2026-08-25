@@ -1,5 +1,6 @@
 from app.collector.adapters.postgres import PostgresAdapter
 from app.collector.adapters.structured import (
+    DatabaseClientConnectionAdapter,
     LinuxAuthAdapter,
     NetworkConnectionAdapter,
     ProcessAdapter,
@@ -10,6 +11,7 @@ from app.collector.adapters.structured import (
 )
 
 __all__ = [
+    "DatabaseClientConnectionAdapter",
     "LinuxAuthAdapter",
     "NetworkConnectionAdapter",
     "PostgresAdapter",

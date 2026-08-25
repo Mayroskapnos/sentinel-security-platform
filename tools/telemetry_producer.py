@@ -41,7 +41,11 @@ EVENT_TEMPLATES: tuple[dict[str, Any], ...] = (
         "action": "get_profile",
         "status": "success",
         "severity": "informational",
-        "normalized_data": {"method": "GET", "path": "/api/profile", "protocol": "HTTP/2"},
+        "normalized_data": {
+            "method": "GET",
+            "path": "/api/profile",
+            "protocol": "HTTP/2",
+        },
         "raw_event": {"message": "GET /api/profile 200"},
     },
     {
@@ -225,7 +229,9 @@ def parse_args() -> argparse.Namespace:
         help="Collector ingestion key (default: COLLECTOR_API_KEY or local lab default)",
     )
     parser.add_argument(
-        "--mode", choices=("single", "stream", "burst", "detection-demo"), default="single"
+        "--mode",
+        choices=("single", "stream", "burst", "detection-demo"),
+        default="single",
     )
     parser.add_argument("--count", type=int, help="Number of events (stream: 25, burst: 100)")
     parser.add_argument("--interval", type=float, help="Seconds between stream events (default: 2)")

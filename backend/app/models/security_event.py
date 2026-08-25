@@ -38,9 +38,16 @@ class SecurityEvent(Base):
     asset_id: Mapped[UUID | None] = mapped_column(
         ForeignKey("assets.id", ondelete="SET NULL"), nullable=True, index=True
     )
+    scenario_run_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("scenario_runs.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    scenario_id: Mapped[str | None] = mapped_column(String(32), nullable=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     asset: Mapped["Asset | None"] = relationship(back_populates="events")  # noqa: F821
+    scenario_run: Mapped["ScenarioRun | None"] = relationship(  # noqa: F821
+        back_populates="events"
+    )
     alerts: Mapped[list["Alert"]] = relationship(  # noqa: F821
         secondary="alert_events", back_populates="evidence_events"
     )

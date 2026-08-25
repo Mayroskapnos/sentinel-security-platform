@@ -21,6 +21,15 @@ def get_json(url: str) -> dict[str, Any]:
     return document
 
 
+def post_json(url: str) -> dict[str, Any]:
+    request = Request(url, data=b"", method="POST", headers={"Accept": "application/json"})
+    with urlopen(request, timeout=10) as response:  # noqa: S310 - explicit local lab URL
+        document: Any = json.load(response)
+    if not isinstance(document, dict):
+        raise TypeError(f"Expected an object response from {url}")
+    return document
+
+
 def compose_exec(service: str, activity: str) -> None:
     subprocess.run(
         [
@@ -45,6 +54,7 @@ def wait_for_event(
     source: str,
     since: datetime,
     source_ip: str | None = None,
+    scenario_run_id: str | None = None,
     timeout: int = 60,
 ) -> dict[str, Any]:
     parameters = {
@@ -53,6 +63,7 @@ def wait_for_event(
         "start_time": since.isoformat(),
         "page_size": 100,
         **({"source_ip": source_ip} if source_ip else {}),
+        **({"scenario_run_id": scenario_run_id} if scenario_run_id else {}),
     }
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
@@ -66,20 +77,14 @@ def wait_for_event(
     raise TimeoutError(f"No {source}/{event_type} event arrived within {timeout} seconds")
 
 
-def wait_for_database_alert(base_url: str, since: datetime, timeout: int = 60) -> dict[str, Any]:
-    parameters = {
-        "rule_id": "DET-DB-001",
-        "start_time": since.isoformat(),
-        "page_size": 100,
-    }
+def wait_for_scenario_run(base_url: str, run_id: str, timeout: int = 60) -> dict[str, Any]:
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
-        page = get_json(f"{base_url}/api/v1/alerts?{urlencode(parameters)}")
-        items = page.get("items")
-        if isinstance(items, list) and items and isinstance(items[0], dict):
-            return items[0]
+        run = get_json(f"{base_url}/api/v1/simulator/runs/{run_id}")
+        if run.get("status") not in {"pending", "running"}:
+            return run
         time.sleep(1)
-    raise TimeoutError(f"DET-DB-001 alert did not arrive within {timeout} seconds")
+    raise TimeoutError(f"SCN-004 did not finish within {timeout} seconds")
 
 
 def main() -> int:
@@ -113,15 +118,41 @@ def main() -> int:
         source_ip="10.10.20.10",
     )
 
-    compose_exec("sentinel-employee-01", "database")
+    started_run = post_json(f"{sentinel_url}/api/v1/simulator/run/SCN-004")
+    run_id = started_run.get("id")
+    if not isinstance(run_id, str):
+        raise RuntimeError("SCN-004 did not return a persistent run ID")
+    scenario_run = wait_for_scenario_run(sentinel_url, run_id)
+    if scenario_run.get("status") != "completed":
+        raise RuntimeError(f"SCN-004 did not complete: {scenario_run.get('error_message')}")
+
     database_event = wait_for_event(
         sentinel_url,
         event_type="database_connection",
-        source="postgresql",
+        source="database_client",
         source_ip="10.10.20.10",
         since=since,
+        scenario_run_id=run_id,
     )
-    alert = wait_for_database_alert(sentinel_url, since)
+    detections = scenario_run.get("detections")
+    detection = (
+        next(
+            (
+                item
+                for item in detections
+                if isinstance(item, dict) and item.get("rule_id") == "DET-DB-001"
+            ),
+            None,
+        )
+        if isinstance(detections, list)
+        else None
+    )
+    if not detection or detection.get("observed") is not True:
+        raise RuntimeError("SCN-004 did not attribute an observed DET-DB-001 alert")
+    alert_ids = detection.get("alert_ids")
+    if not isinstance(alert_ids, list) or not alert_ids or not isinstance(alert_ids[0], str):
+        raise RuntimeError("SCN-004 did not return an attributed alert ID")
+    alert = get_json(f"{sentinel_url}/api/v1/alerts/{alert_ids[0]}")
     if alert.get("mitre_technique_id") is not None:
         raise RuntimeError("DET-DB-001 must remain intentionally unmapped")
 
@@ -129,6 +160,7 @@ def main() -> int:
     print("Corporate lab integration passed")
     print(f"web_event_id={web_event['id']}")
     print(f"process_event_id={process_event['id']}")
+    print(f"scenario_run_id={run_id}")
     print(f"database_event_id={database_event['id']}")
     print(f"database_alert_id={alert['id']}")
     print(f"lab_assets_online={lab_status.get('active_assets')}/{lab_status.get('total_assets')}")

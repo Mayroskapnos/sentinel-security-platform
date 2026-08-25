@@ -16,6 +16,10 @@ export type EventSeverity =
 export type AlertStatus =
   "new" | "investigating" | "resolved" | "false_positive";
 export type RuleType = "threshold" | "sequence" | "single_event";
+export type ScenarioRunStatus =
+  "pending" | "running" | "completed" | "failed" | "cancelled";
+export type ScenarioStepStatus =
+  "pending" | "running" | "completed" | "failed" | "skipped" | "cancelled";
 
 export interface Page<T> {
   items: T[];
@@ -69,6 +73,8 @@ export interface SecurityEvent {
   raw_event: Record<string, unknown>;
   normalized_data: Record<string, unknown>;
   asset_id: string | null;
+  scenario_run_id: string | null;
+  scenario_id: string | null;
   asset: AssetReference | null;
   created_at: string;
 }
@@ -146,6 +152,7 @@ export interface AssetFilters {
 export interface EventFilters {
   hostname?: string;
   asset_id?: string;
+  scenario_run_id?: string;
   event_type?: string;
   source?: string;
   severity?: EventSeverity;
@@ -246,4 +253,83 @@ export interface LabStatus {
   total_assets: number;
   assets: LabAssetStatus[];
   sources: LabSourceStatus[];
+}
+
+export interface ScenarioSummary {
+  id: string;
+  name: string;
+  description: string;
+  risk: "low";
+  estimated_seconds: number;
+  targets: string[];
+  expected_detections: string[];
+  step_count: number;
+}
+
+export interface ScenarioStepDefinition {
+  name: string;
+  action: string;
+  target: string | null;
+  count: number | null;
+  seconds: number | null;
+}
+
+export interface ScenarioDetail extends ScenarioSummary {
+  steps: ScenarioStepDefinition[];
+}
+
+export interface ScenarioRunStep {
+  index: number;
+  name: string;
+  action: string;
+  status: ScenarioStepStatus;
+  started_at: string | null;
+  finished_at: string | null;
+  message: string | null;
+}
+
+export interface DetectionObservation {
+  rule_id: string;
+  observed: boolean;
+  alert_ids: string[];
+  note: string | null;
+}
+
+export interface ScenarioAlertReference {
+  id: string;
+  rule_id: string;
+  title: string;
+  severity: EventSeverity;
+  timestamp: string;
+}
+
+export interface ScenarioRun {
+  id: string;
+  scenario_id: string;
+  scenario_name: string;
+  status: ScenarioRunStatus;
+  started_at: string | null;
+  finished_at: string | null;
+  current_step: number;
+  total_steps: number;
+  requested_by: string;
+  steps: ScenarioRunStep[];
+  expected_detections: string[];
+  targets: string[];
+  result: Record<string, unknown>;
+  error_message: string | null;
+  created_at: string;
+  updated_at: string;
+  event_count: number;
+  alert_count: number;
+  detections: DetectionObservation[];
+  alerts: ScenarioAlertReference[];
+}
+
+export interface SimulatorStatus {
+  enabled: boolean;
+  available: boolean;
+  state: "disabled" | "unavailable" | "idle" | "running";
+  active_run: ScenarioRun | null;
+  message: string;
 }

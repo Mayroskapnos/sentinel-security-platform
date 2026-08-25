@@ -6,6 +6,9 @@ from app.collector.adapters.common import event, optional_int, redact, timestamp
 from app.schemas.security_event import SecurityEventCreate
 
 AUTH_FAILURE = re.compile(r'password authentication failed for user "(?P<username>[^"]+)"')
+SIMULATION_APP = re.compile(
+    r"^sentinel-sim:(?P<run_id>[0-9a-f-]{36}):(?P<scenario_id>SCN-[0-9]{3})$"
+)
 
 
 class PostgresAdapter:
@@ -19,6 +22,15 @@ class PostgresAdapter:
             return None
         if isinstance(source_ip, str):
             source_ip = self.source_ip_aliases.get(source_ip, source_ip)
+        attribution = SIMULATION_APP.match(str(record.get("application_name", "")))
+        attribution_fields = (
+            {
+                "scenario_run_id": attribution.group("run_id"),
+                "scenario_id": attribution.group("scenario_id"),
+            }
+            if attribution
+            else {}
+        )
         common = {
             "timestamp": timestamp(record.get("timestamp")),
             "source": "postgresql",
@@ -30,6 +42,7 @@ class PostgresAdapter:
             "username": record.get("user"),
             "process_name": "postgres",
             "raw_event": redact(record),
+            **attribution_fields,
         }
         if message.startswith("connection authorized"):
             return event(

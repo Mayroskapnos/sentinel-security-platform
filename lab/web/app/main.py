@@ -2,13 +2,13 @@ import asyncio
 import json
 import logging
 import os
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from hmac import compare_digest
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from time import perf_counter
-from typing import AsyncIterator
 
 import psycopg
 from fastapi import FastAPI, Request, status
@@ -139,22 +139,23 @@ async def login(payload: LoginRequest, request: Request) -> JSONResponse:
 
 
 def database_profile() -> dict[str, object]:
-    with psycopg.connect(
-        host=os.getenv("LAB_DB_HOST", "sentinel-db"),
-        port=5432,
-        dbname=os.getenv("LAB_DB_NAME", "corp_demo"),
-        user=os.getenv("LAB_DB_USER", "lab_app"),
-        password=os.getenv("LAB_DB_PASSWORD", "corporate_lab_db_demo"),
-        application_name="corporate-portal",
-        connect_timeout=5,
-    ) as connection:
-        with connection.cursor() as cursor:
-            cursor.execute(
-                "SELECT display_name, department FROM employees "
-                "WHERE username = %s LIMIT 1",
-                ("demo-user",),
-            )
-            row = cursor.fetchone()
+    with (
+        psycopg.connect(
+            host=os.getenv("LAB_DB_HOST", "sentinel-db"),
+            port=5432,
+            dbname=os.getenv("LAB_DB_NAME", "corp_demo"),
+            user=os.getenv("LAB_DB_USER", "lab_app"),
+            password=os.getenv("LAB_DB_PASSWORD", "corporate_lab_db_demo"),
+            application_name="corporate-portal",
+            connect_timeout=5,
+        ) as connection,
+        connection.cursor() as cursor,
+    ):
+        cursor.execute(
+            "SELECT display_name, department FROM employees WHERE username = %s LIMIT 1",
+            ("demo-user",),
+        )
+        row = cursor.fetchone()
     return {
         "username": "demo-user",
         "display_name": row[0] if row else "Demo User",

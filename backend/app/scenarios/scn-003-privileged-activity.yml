@@ -1,0 +1,11 @@
+id: SCN-003
+name: Privileged Administrative Activity
+description: Runs the existing harmless, fixed sudo identity operation on the administrative server.
+risk: low
+estimated_seconds: 8
+targets: [admin-server]
+expected_detections: [DET-PRIV-001]
+steps:
+  - name: Benign privileged identity check
+    action: controlled_privileged_activity
+    target: admin-server

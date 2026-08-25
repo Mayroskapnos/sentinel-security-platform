@@ -3,8 +3,62 @@ from uuid import uuid4
 
 import httpx
 import pytest
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from app.models.enums import ScenarioRunStatus
+from app.models.scenario_run import ScenarioRun
 from tests.factories import asset_payload, event_payload
+
+
+@pytest.mark.asyncio
+async def test_unknown_scenario_attribution_is_rejected_without_losing_event(
+    client: httpx.AsyncClient,
+) -> None:
+    payload = event_payload(
+        scenario_run_id="cc6957e0-b1dd-4ca3-85b0-7106ee63b466",
+        scenario_id="SCN-001",
+    )
+
+    response = await client.post("/api/v1/events", json=payload)
+
+    assert response.status_code == 201
+    document = response.json()
+    assert document["scenario_run_id"] is None
+    assert document["scenario_id"] is None
+    assert document["normalized_data"]["scenario_attribution_rejected"] is True
+
+
+@pytest.mark.asyncio
+async def test_valid_scenario_attribution_is_persisted_by_the_backend(
+    client: httpx.AsyncClient,
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    async with session_factory() as session:
+        run = ScenarioRun(
+            scenario_id="SCN-004",
+            scenario_name="Unexpected Workstation Database Access",
+            status=ScenarioRunStatus.COMPLETED,
+            current_step=1,
+            total_steps=1,
+            steps=[],
+            expected_detections=["DET-DB-001"],
+            targets=["employee-01", "database"],
+            result={},
+        )
+        session.add(run)
+        await session.commit()
+        run_id = run.id
+
+    response = await client.post(
+        "/api/v1/events",
+        json=event_payload(scenario_run_id=str(run_id), scenario_id="SCN-004"),
+    )
+
+    assert response.status_code == 201
+    document = response.json()
+    assert document["scenario_run_id"] == str(run_id)
+    assert document["scenario_id"] == "SCN-004"
+    assert document["normalized_data"]["scenario_run_id"] == str(run_id)
 
 
 async def create_asset(client: httpx.AsyncClient) -> dict:

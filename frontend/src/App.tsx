@@ -47,6 +47,16 @@ const SystemPage = lazy(() =>
     default: module.SystemPage,
   })),
 );
+const SimulatorPage = lazy(() =>
+  import("./pages/SimulatorPage").then((module) => ({
+    default: module.SimulatorPage,
+  })),
+);
+const ScenarioRunPage = lazy(() =>
+  import("./pages/ScenarioRunPage").then((module) => ({
+    default: module.ScenarioRunPage,
+  })),
+);
 
 export default function App() {
   return (
@@ -62,6 +72,8 @@ export default function App() {
           <Route element={<RulesPage />} path="/rules" />
           <Route element={<RuleDetailPage />} path="/rules/:ruleId" />
           <Route element={<SystemPage />} path="/system" />
+          <Route element={<SimulatorPage />} path="/simulator" />
+          <Route element={<ScenarioRunPage />} path="/simulator/runs/:runId" />
           <Route element={<Navigate replace to="/" />} path="*" />
         </Routes>
       </Suspense>

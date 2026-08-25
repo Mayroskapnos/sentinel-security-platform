@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any, Protocol
 
 from app.collector.adapters import (
+    DatabaseClientConnectionAdapter,
     LinuxAuthAdapter,
     NetworkConnectionAdapter,
     PostgresAdapter,
@@ -46,6 +47,7 @@ def sources(log_root: Path) -> list[Source]:
         ServiceHealthAdapter.kind: ServiceHealthAdapter(),
     }
     host_adapters: dict[str, Adapter] = {
+        DatabaseClientConnectionAdapter.kind: DatabaseClientConnectionAdapter(),
         LinuxAuthAdapter.kind: LinuxAuthAdapter(),
         NetworkConnectionAdapter.kind: NetworkConnectionAdapter(),
         ProcessAdapter.kind: ProcessAdapter(),

@@ -1,0 +1,11 @@
+id: SCN-004
+name: Unexpected Workstation Database Access
+description: Opens one fixed lab database session from employee-01, performs a constant health query, and disconnects.
+risk: low
+estimated_seconds: 8
+targets: [employee-01, database]
+expected_detections: [DET-DB-001]
+steps:
+  - name: Controlled workstation database connection
+    action: controlled_database_connection
+    target: employee-01

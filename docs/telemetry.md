@@ -48,9 +48,14 @@ Real activity is written by the service that observed or performed it, then pars
 - `SudoAdapter`: an actual allow-listed sudo command result.
 - `PostgresAdapter`: native PostgreSQL JSON connection, query-category, and disconnection logs.
 - `NetworkConnectionAdapter`: the result of a known real internal client operation; no packet sniffing.
+- `DatabaseClientConnectionAdapter`: the actual fixed `psql` connection result, explicitly connection-only evidence used for reliable ScenarioRun attribution.
 - `ServiceHealthAdapter`: low-rate service heartbeat telemetry.
 
 Source timestamps are required and normalized to UTC. `raw_event` preserves the relevant source record after secret-field redaction. `normalized_data.origin` is `corporate_lab`; synthetic records use `synthetic`. PostgreSQL connection events explicitly state that connection evidence does not assert collection.
+
+Controlled simulator actions add backend-generated `scenario_run_id` and `scenario_id` correlation. Structured host logs carry them directly. The fixed SSH destination agent assigns prepared IDs to the bounded authentication records it observes. PostgreSQL actions use a validated `application_name` marker that the adapter parses without treating query text as control input. Adapters persist the values in dedicated SecurityEvent columns and normalized metadata. Ordinary background activity has null scenario attribution.
+
+Attribution never changes matching semantics. Run event totals query the persisted correlation column, and observed Alerts are joined through relational AlertEvent evidence. The frontend does not infer attribution from time windows or claim expected rules fired when no attributed alert exists.
 
 The collector maintains a file fingerprint and byte offset per source, retries temporary API failures with backoff capped at 30 seconds, and never advances a failed delivery. This is pragmatic single-node buffering, not a durable queue.
 
@@ -70,7 +75,7 @@ Multiple IP matches are ambiguous and leave the event unresolved. Unknown assets
 
 The transaction commits before serialization and broadcast. The socket therefore carries the persistent UUID and the event is immediately REST-queryable. Zero clients, a disconnected client, or one failed client never prevents storage or affects other clients.
 
-Messages use a version `1` envelope and support `security_event`, `alert_created`, `alert_updated`, and `telemetry_status`. The manager is in memory and suitable for the single backend process in Compose. Horizontal deployments require shared pub/sub and cross-instance suppression coordination.
+Messages use a version `1` envelope and support `security_event`, `alert_created`, `alert_updated`, `telemetry_status`, and the five `simulation_*` lifecycle types. Simulation progress is not security telemetry and is used only to prompt authoritative ScenarioRun refetches. The manager is in memory and suitable for the single backend process in Compose. Horizontal deployments require shared pub/sub and cross-instance suppression coordination.
 
 ## Browser behavior
 

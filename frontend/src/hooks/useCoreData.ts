@@ -15,10 +15,17 @@ import {
   getEvent,
   getEvents,
   getLabStatus,
+  getScenario,
+  getScenarioRun,
+  getScenarioRuns,
+  getScenarios,
+  getSimulatorStatus,
   getRule,
   getRules,
   updateAlert,
   updateRule,
+  cancelScenarioRun,
+  runScenario,
 } from "../api/client";
 import type {
   AlertFilters,
@@ -61,6 +68,15 @@ export const queryKeys = {
   },
   lab: {
     status: ["lab", "status"] as const,
+  },
+  simulator: {
+    all: ["simulator"] as const,
+    status: ["simulator", "status"] as const,
+    scenarios: ["simulator", "scenarios"] as const,
+    scenario: (scenarioId: string) =>
+      ["simulator", "scenarios", scenarioId] as const,
+    runs: ["simulator", "runs"] as const,
+    run: (runId: string) => ["simulator", "runs", runId] as const,
   },
 };
 
@@ -180,5 +196,70 @@ export function useLabStatus() {
     queryKey: queryKeys.lab.status,
     queryFn: getLabStatus,
     refetchInterval: 15_000,
+  });
+}
+
+export function useSimulatorStatus() {
+  return useQuery({
+    queryKey: queryKeys.simulator.status,
+    queryFn: getSimulatorStatus,
+    refetchInterval: 5_000,
+  });
+}
+
+export function useScenarios() {
+  return useQuery({
+    queryKey: queryKeys.simulator.scenarios,
+    queryFn: getScenarios,
+  });
+}
+
+export function useScenario(scenarioId: string | undefined) {
+  return useQuery({
+    queryKey: queryKeys.simulator.scenario(scenarioId ?? ""),
+    queryFn: () => getScenario(scenarioId!),
+    enabled: Boolean(scenarioId),
+  });
+}
+
+export function useScenarioRuns(page = 1) {
+  return useQuery({
+    queryKey: [...queryKeys.simulator.runs, page],
+    queryFn: () => getScenarioRuns(page),
+    refetchInterval: 5_000,
+  });
+}
+
+export function useScenarioRun(runId: string | undefined) {
+  return useQuery({
+    queryKey: queryKeys.simulator.run(runId ?? ""),
+    queryFn: () => getScenarioRun(runId!),
+    enabled: Boolean(runId),
+    refetchInterval: (query) =>
+      ["pending", "running"].includes(query.state.data?.status ?? "")
+        ? 2_000
+        : false,
+  });
+}
+
+export function useRunScenario() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: runScenario,
+    onSuccess: (run) => {
+      queryClient.setQueryData(queryKeys.simulator.run(run.id), run);
+      void queryClient.invalidateQueries({ queryKey: queryKeys.simulator.all });
+    },
+  });
+}
+
+export function useCancelScenarioRun() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: cancelScenarioRun,
+    onSuccess: (run) => {
+      queryClient.setQueryData(queryKeys.simulator.run(run.id), run);
+      void queryClient.invalidateQueries({ queryKey: queryKeys.simulator.all });
+    },
   });
 }

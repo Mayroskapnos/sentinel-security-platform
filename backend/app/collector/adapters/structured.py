@@ -125,6 +125,35 @@ class NetworkConnectionAdapter:
         )
 
 
+class DatabaseClientConnectionAdapter:
+    kind = "database_client_connection"
+
+    def parse(self, record: Mapping[str, Any]) -> SecurityEventCreate:
+        result = str(record["result"]).lower()
+        return event(
+            timestamp=timestamp(record.get("timestamp")),
+            event_type="database_connection",
+            source="database_client",
+            source_ip=record.get("source_ip"),
+            destination_ip=record.get("destination_ip"),
+            destination_port=optional_int(record.get("destination_port")),
+            hostname=record.get("hostname"),
+            username=record.get("username"),
+            process_name="psql",
+            action="database_connect",
+            status="success" if result == "success" else "failed",
+            severity="informational" if result == "success" else "low",
+            raw_event=redact(record),
+            normalized_data={
+                "adapter": "database_client",
+                "database": record.get("database"),
+                "service": "postgresql",
+                "connection_evidence": True,
+                "data_collection_asserted": False,
+            },
+        )
+
+
 class LinuxAuthAdapter:
     kind = "linux_auth"
 
@@ -148,7 +177,7 @@ class LinuxAuthAdapter:
             action="ssh_login",
             status="success" if accepted else "failed",
             severity="informational" if accepted else "low",
-            raw_event={"message": message},
+            raw_event=redact(record),
             normalized_data={
                 "adapter": "linux_auth",
                 "authentication_method": match.group("method"),

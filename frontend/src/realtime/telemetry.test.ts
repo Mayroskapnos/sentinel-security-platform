@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import type { Alert, Page, SecurityEvent } from "../types/core";
+import { queryKeys } from "../hooks/useCoreData";
+import {
+  authoritativeRefreshQueryKeys,
+  shouldRefreshAuthoritativeState,
+} from "./cacheRefresh";
 import {
   alertMatchesFilters,
   canInsertLiveAlert,
@@ -31,6 +36,8 @@ function securityEvent(overrides: Partial<SecurityEvent> = {}): SecurityEvent {
     raw_event: { message: "Synthetic development telemetry" },
     normalized_data: { service: "ssh" },
     asset_id: "837e38d2-032a-42d4-9f58-e2699153ea77",
+    scenario_run_id: null,
+    scenario_id: null,
     asset: {
       id: "837e38d2-032a-42d4-9f58-e2699153ea77",
       hostname: "employee-01",
@@ -104,6 +111,26 @@ describe("telemetry message parsing", () => {
         JSON.stringify({ version: "2", type: "security_event", data: {} }),
       ),
     ).toBeNull();
+  });
+
+  it("accepts typed simulation progress for REST refetch", () => {
+    const parsed = parseTelemetryMessage(
+      JSON.stringify({
+        version: "1",
+        type: "simulation_step",
+        timestamp: "2026-08-25T12:00:00Z",
+        data: {
+          run_id: "1a7a65a3-4cb0-4fa6-a2ea-1e266594ee8d",
+          scenario_id: "SCN-005",
+          status: "running",
+          current_step: 3,
+          total_steps: 5,
+          label: "Internal service activity",
+          message: "Action started.",
+        },
+      }),
+    );
+    expect(parsed?.type).toBe("simulation_step");
   });
 });
 
@@ -200,5 +227,11 @@ describe("reconnect backoff", () => {
     expect(reconnectDelay(1, 0.5)).toBe(2_000);
     expect(reconnectDelay(2, 0.5)).toBe(4_000);
     expect(reconnectDelay(20, 0.5)).toBe(30_000);
+  });
+
+  it("refetches authoritative simulator state only after a reconnect", () => {
+    expect(shouldRefreshAuthoritativeState(false)).toBe(false);
+    expect(shouldRefreshAuthoritativeState(true)).toBe(true);
+    expect(authoritativeRefreshQueryKeys()).toContain(queryKeys.simulator.all);
   });
 });

@@ -13,6 +13,10 @@ import type {
   LabStatus,
   Page,
   SecurityEvent,
+  ScenarioDetail,
+  ScenarioRun,
+  ScenarioSummary,
+  SimulatorStatus,
 } from "../types/core";
 
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || "/api/v1";
@@ -83,6 +87,43 @@ export function getHealth(): Promise<HealthResponse> {
 
 export function getLabStatus(): Promise<LabStatus> {
   return request<LabStatus>("/lab/status");
+}
+
+export function getSimulatorStatus(): Promise<SimulatorStatus> {
+  return request<SimulatorStatus>("/simulator/status");
+}
+
+export function getScenarios(): Promise<ScenarioSummary[]> {
+  return request<ScenarioSummary[]>("/simulator/scenarios");
+}
+
+export function getScenario(scenarioId: string): Promise<ScenarioDetail> {
+  return request<ScenarioDetail>(`/simulator/scenarios/${scenarioId}`);
+}
+
+export function runScenario(scenarioId: string): Promise<ScenarioRun> {
+  return request<ScenarioRun>(`/simulator/run/${scenarioId}`, {
+    method: "POST",
+  });
+}
+
+export function getScenarioRuns(
+  page = 1,
+  pageSize = 20,
+): Promise<Page<ScenarioRun>> {
+  return request<Page<ScenarioRun>>(
+    `/simulator/runs?page=${page}&page_size=${pageSize}`,
+  );
+}
+
+export function getScenarioRun(runId: string): Promise<ScenarioRun> {
+  return request<ScenarioRun>(`/simulator/runs/${runId}`);
+}
+
+export function cancelScenarioRun(runId: string): Promise<ScenarioRun> {
+  return request<ScenarioRun>(`/simulator/runs/${runId}/cancel`, {
+    method: "POST",
+  });
 }
 
 export function getAssets(filters: AssetFilters): Promise<Page<Asset>> {

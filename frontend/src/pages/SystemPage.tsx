@@ -1,23 +1,38 @@
-import { Activity, Database, Radio, Server, Wifi } from "lucide-react";
+import {
+  Activity,
+  Crosshair,
+  Database,
+  Radio,
+  Server,
+  Wifi,
+} from "lucide-react";
 
 import { AssetStatusBadge, EventStatusBadge } from "../components/data/Badge";
 import { PageHeading } from "../components/data/PageHeading";
 import { ErrorState, LoadingState } from "../components/data/QueryState";
 import { useHealth } from "../hooks/useHealth";
-import { useLabStatus } from "../hooks/useCoreData";
+import { useLabStatus, useSimulatorStatus } from "../hooks/useCoreData";
 import { formatDateTime, humanize } from "../lib/format";
 import { useTelemetry } from "../realtime/TelemetryContext";
 
 export function SystemPage() {
   const health = useHealth();
   const lab = useLabStatus();
+  const simulator = useSimulatorStatus();
   const telemetry = useTelemetry();
 
-  if (health.isLoading || lab.isLoading) {
+  if (health.isLoading || lab.isLoading || simulator.isLoading) {
     return <LoadingState label="Loading platform and corporate lab status" />;
   }
-  if (health.isError || lab.isError || !health.data || !lab.data) {
-    return <ErrorState error={health.error ?? lab.error} />;
+  if (
+    health.isError ||
+    lab.isError ||
+    simulator.isError ||
+    !health.data ||
+    !lab.data ||
+    !simulator.data
+  ) {
+    return <ErrorState error={health.error ?? lab.error ?? simulator.error} />;
   }
 
   const platformRows = [
@@ -39,6 +54,20 @@ export function SystemPage() {
       state: lab.data.collector_status,
       icon: Radio,
     },
+    {
+      label: "Attack Simulator",
+      detail:
+        simulator.data.state === "running"
+          ? `Running ${simulator.data.active_run?.scenario_id ?? "scenario"}`
+          : simulator.data.message,
+      state:
+        simulator.data.state === "idle"
+          ? "active"
+          : simulator.data.state === "running"
+            ? "active"
+            : simulator.data.state,
+      icon: Crosshair,
+    },
   ];
 
   return (
@@ -54,7 +83,7 @@ export function SystemPage() {
         title="System"
       />
 
-      <section className="mt-8 grid gap-4 lg:grid-cols-3">
+      <section className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {platformRows.map(({ detail, icon: Icon, label, state }) => (
           <article
             className="rounded-xl border border-line bg-panel p-5 shadow-panel"

@@ -25,9 +25,25 @@ SENTINEL is an experimental defensive-security and Purple Team platform intended
 
 The corporate lab does not contain deliberately vulnerable services, exploitation, credential cracking, malware, persistence, packet interception, or attack automation. Docker is not a hard security boundary against a user with daemon access.
 
+## Controlled simulator boundary
+
+- Scenario definitions are trusted repository data loaded with safe YAML and strict schemas. Duplicate IDs, unknown actions, unsupported fields, external-looking targets, arbitrary commands, and excessive limits are rejected before execution.
+- `LabTargetRegistry` permits exactly the five managed Corporate Lab logical assets. Neither UI nor API accepts a target, address, hostname, URL, domain, port, credential, SQL statement, or command.
+- `SafeActionRunner` maps validated action names to compiled broker paths. Lab host agents expose dedicated fixed endpoints rather than a generic command API.
+- Authentication attempts, waits, steps, connection actions, action duration, and total duration have code-enforced maximums.
+- `sentinel-simulator` is non-root and joins only the three internal lab bridges. It has a read-only root filesystem, all capabilities dropped, `no-new-privileges`, no host port, no management network, no host volume, no Docker socket, and no host networking.
+- The backend remains management-only. The existing gateway has an unpublished listener that proxies only `/internal/simulator/` to a fixed broker upstream.
+- Broker and lab action endpoints use a dedicated `SENTINEL_SIMULATION_KEY`. It is not the collector key, is never accepted as a command parameter, and `.env` remains untracked.
+- The broker cannot insert events or alerts. Actual lab logs must traverse the read-only collector and authenticated telemetry boundary.
+- One database-backed active slot prevents overlapping runs. Cancellation and failure preserve historical telemetry.
+- Startup marks stale pending/running work failed and never automatically resumes a partially executed action sequence.
+- Compose enables this feature only as a local development default. `SENTINEL_SIMULATOR_ENABLED=false` rejects execution while leaving history readable.
+
+The normal local UI/API still lacks user authentication. Loopback binding is not authorization; do not expose the simulator through a public or shared unauthenticated ingress.
+
 ## Development credentials
 
-Values in `.env.example` are local development defaults, not production secrets. Change them for shared environments. Event ingestion supports an optional `X-Sentinel-Collector-Key` shared key and Compose enables it for the lab. It is a lightweight local trust boundary, not a replacement for TLS, per-agent identity, key rotation, or production authorization. JWT settings remain reserved and unused.
+Values in `.env.example` are local development defaults, not production secrets. Change them for shared environments. Event ingestion supports an optional `X-Sentinel-Collector-Key` shared key and simulator control uses the separate `X-Sentinel-Simulation-Key`; Compose enables both for the local lab. These are lightweight local trust boundaries, not replacements for TLS, per-agent identity, key rotation, or production authorization. JWT settings remain reserved and unused.
 
 ## Collector trust boundary
 

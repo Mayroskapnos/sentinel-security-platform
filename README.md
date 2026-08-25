@@ -4,7 +4,7 @@
 
 SENTINEL is an experimental security monitoring and Purple Team platform for controlled environments. It provides persistent asset inventory, normalized security-event storage, deterministic detections, evidence-backed alerts, live delivery, investigation workflows, and database-backed operational dashboards.
 
-> Current status: **Milestone 4 - Corporate Docker Lab**. Incident correlation, attack simulation, and active response remain future milestones.
+> Current status: **Milestone 5 - Controlled Attack Simulator**. Incident correlation, the Attack Map, and active response remain future milestones.
 
 ## What is SENTINEL?
 
@@ -30,6 +30,10 @@ SENTINEL is a portfolio-grade exploration of the architecture behind SIEM, EDR/X
 - Read-only file-tail collector with persistent checkpoints and bounded retry backoff
 - Lightweight collector-key authentication for local event ingestion
 - Telemetry-derived Corporate Lab status UI and server-side source filtering
+- Five repository-defined Purple Team scenarios with persistent run history and cancellation
+- Strict target/action registries, hard execution limits, one-run concurrency, and restart recovery
+- Explicit ScenarioRun telemetry attribution and honest expected-versus-observed detection results
+- Typed live simulator progress with REST recovery after refresh or WebSocket loss
 - Database-side dashboard summary and aggregation queries
 - Idempotent demo seeding with five lab assets and 180 coherent historical events
 - Searchable Assets, Asset Details, Events, Alerts, Alert Detail, and Detection Rules workflows
@@ -41,7 +45,8 @@ SENTINEL is a portfolio-grade exploration of the architecture behind SIEM, EDR/X
 ```mermaid
 flowchart LR
     Producer[Synthetic producer] -->|POST telemetry| API[FastAPI]
-    Lab[Corporate lab services] -->|actual logs| Collector[Collector and adapters]
+    Simulator[Controlled simulator] -->|fixed lab actions| Lab[Corporate lab services]
+    Lab -->|actual logs| Collector[Collector and adapters]
     Collector -->|POST telemetry| API
     API --> Normalizer[Event normalizer]
     Normalizer --> Service[Security event service]
@@ -59,7 +64,7 @@ flowchart LR
     Seed[Deterministic demo seed] --> DB
 ```
 
-PostgreSQL remains the source of truth. WebSockets provide low-latency delivery; REST refetches repair any gap after reconnection. See [Architecture](docs/architecture.md), [Corporate Lab](docs/corporate-lab.md), [Detection Engine](docs/detection-engine.md), [Telemetry](docs/telemetry.md), [API Reference](docs/api.md), and [Security Model](docs/security-model.md).
+PostgreSQL remains the source of truth. WebSockets provide low-latency delivery; REST refetches repair any gap after reconnection. See [Architecture](docs/architecture.md), [Corporate Lab](docs/corporate-lab.md), [Attack Simulator](docs/attack-simulator.md), [Detection Engine](docs/detection-engine.md), [Telemetry](docs/telemetry.md), [API Reference](docs/api.md), and [Security Model](docs/security-model.md).
 
 ## Technology stack
 
@@ -91,6 +96,7 @@ Open:
 - Alerts: <http://localhost:3000/alerts>
 - Detection rules: <http://localhost:3000/rules>
 - System and lab status: <http://localhost:3000/system>
+- Attack Simulator: <http://localhost:3000/simulator>
 - Corporate lab portal: <http://localhost:8081>
 - API health: <http://localhost:8000/api/v1/health>
 - OpenAPI: <http://localhost:8000/api/docs>
@@ -99,7 +105,7 @@ The Compose defaults work without an `.env` file. Copy `.env.example` to `.env` 
 
 ## Corporate Lab
 
-The corporate lab is an isolated local environment built specifically for SENTINEL development and demonstration. A normal start runs ten containers: the three SENTINEL platform services, five corporate services, one collector, and one hardened localhost portal gateway. Lab PostgreSQL is completely separate from the PostgreSQL that stores SENTINEL assets, events, rules, and alerts.
+The corporate lab is an isolated local environment built specifically for SENTINEL development and demonstration. A normal start runs eleven containers: the three SENTINEL platform services, five corporate services, one collector, one hardened localhost portal gateway, and one lightweight controlled-action broker. Lab PostgreSQL is completely separate from the PostgreSQL that stores SENTINEL assets, events, rules, alerts, and scenario runs.
 
 ```text
 Actual web / Linux / SSH / sudo / PostgreSQL logs
@@ -124,6 +130,35 @@ make test-lab
 ```
 
 The background activity rate is a few internal events per minute. It does not scan, brute force, exploit, or contact arbitrary internet services. Sudo and direct workstation-to-database actions are explicit only. `make lab-reset` removes only corporate-lab containers and volumes; it preserves SENTINEL security history. See [Corporate Lab](docs/corporate-lab.md) for topology, fictional credentials, isolation, and limitations.
+
+## Attack Simulator
+
+The Attack Simulator is a controlled security-validation workflow, not a penetration-testing tool. Select one of five built-in scenarios in `/simulator`, confirm the Corporate Lab-only run, observe real persisted step progress, and follow genuine telemetry through the collector and Detection Engine. Scenario files contain validated data only; users cannot provide addresses, hostnames, ports, URLs, credentials, SQL, payloads, or commands.
+
+```text
+Attack Simulator -> fixed lab action -> actual service logs -> collector
+                 -> SecurityEvents -> Detection Engine -> Alerts
+```
+
+SCN-001 validates SSH credential activity, SCN-002 uses exactly ten compiled internal service endpoints, SCN-003 performs a harmless fixed sudo identity check, SCN-004 opens a fixed workstation database connection, and flagship SCN-005 combines all stages. DET-DB-001 remains intentionally ATT&CK-unmapped because it proves a connection, not data collection.
+
+Only one run may be active. Cancelling stops future steps and preserves telemetry and alerts already generated. Expected detections are displayed separately from observed detections; suppression is respected and never bypassed. Back-to-back runs may therefore show an expected detection as not observed until its five-minute rule cooldown expires.
+
+```bash
+make simulator-status
+make scenario-list
+make scenario-run SCENARIO=SCN-005
+make scenario-history
+```
+
+PowerShell alternatives use `Invoke-RestMethod`, for example:
+
+```powershell
+Invoke-RestMethod http://127.0.0.1:8000/api/v1/simulator/scenarios
+Invoke-RestMethod -Method Post http://127.0.0.1:8000/api/v1/simulator/run/SCN-005
+```
+
+Compose enables the simulator for local development. Set `SENTINEL_SIMULATOR_ENABLED=false` elsewhere to reject new execution while retaining metadata and history. The local API has no user authentication and must not be publicly exposed. See [Attack Simulator](docs/attack-simulator.md).
 
 ## Live telemetry
 
@@ -188,7 +223,7 @@ Equivalent Make targets are `make migrate`, `make seed`, `make demo`, and `make 
 | `admin-server` | Server | Server | `10.10.30.10` |
 | `database` | Database | Server | `10.10.30.20` |
 
-These identities are synchronized at startup and correspond directly to the running Milestone 4 containers. `python -m app.cli.seed` remains optional for adding historical synthetic events.
+These identities are synchronized at startup and correspond directly to the running Corporate Lab containers. `python -m app.cli.seed` remains optional for adding historical synthetic events.
 
 ## Local development
 
@@ -234,8 +269,9 @@ Vite runs at <http://localhost:5173> and proxies both HTTP and WebSocket `/api` 
 
 ```bash
 cd backend
-ruff check .
-ruff format --check .
+ruff check . ../tools ../lab
+ruff format --check . ../tools ../lab
+python -m app.cli.validate_scenarios
 pytest
 alembic check
 
@@ -256,7 +292,7 @@ Backend tests use an isolated in-memory database. Migration validation runs agai
 
 ## Security model
 
-Published services bind to `127.0.0.1`; a hardened fixed-upstream gateway is the safe lab portal's only host ingress, while the web app itself has no host binding. Lab networks are internal, the collector uses read-only named log volumes, and no service mounts the Docker socket. The telemetry API accepts normalized defensive data and evaluates deterministic rules, but performs no scanning or offensive action. WebSocket browser origins are allow-listed and local ingestion uses a shared collector key. A real deployment still requires TLS, independent collector identities, key rotation, durable delivery, and production ingress controls.
+Published services bind to `127.0.0.1`; a hardened fixed-upstream gateway is the safe lab portal's only host ingress, while the web app itself has no host binding. Lab networks are internal, the collector uses read-only named log volumes, and no service mounts the Docker socket. The non-root simulator broker has no host port, management membership, host mount, Docker socket, or generic execution endpoint. Its dedicated key is separate from the collector key. WebSocket browser origins are allow-listed. A real deployment still requires authentication, TLS, independent identities, key rotation, durable delivery, and production ingress controls.
 
 ## Roadmap
 
@@ -264,7 +300,7 @@ Published services bind to `127.0.0.1`; a hardened fixed-upstream gateway is the
 2. **Live Telemetry - complete:** dedicated ingestion, asset resolution, WebSocket delivery, live query updates, and synthetic producer
 3. **Detection Engine - complete:** deterministic rules, suppression, evidence-backed alerts, live delivery, and analyst workflows
 4. **Corporate Docker Lab - complete:** isolated enterprise services, real logs, collectors, status, and detection integration
-5. **Attack Simulator:** safe, allow-listed scenarios
+5. **Attack Simulator - complete:** five safe allow-listed scenarios, real lab execution, persistent results, and live progress
 6. **Network Topology:** backend-driven graph
 7. **Incident Correlation:** timelines and multi-stage breach scenario
 8. **MITRE ATT&CK Experience:** tactics, techniques, and attack progression

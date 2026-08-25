@@ -33,6 +33,8 @@ class SecurityEventCreate(BaseModel):
     raw_event: dict[str, Any] = Field(default_factory=dict)
     normalized_data: dict[str, Any] = Field(default_factory=dict)
     asset_id: UUID | None = None
+    scenario_run_id: UUID | None = None
+    scenario_id: str | None = Field(default=None, pattern=r"^SCN-[0-9]{3}$", max_length=16)
 
     @field_validator("source_ip", "destination_ip")
     @classmethod
@@ -67,6 +69,8 @@ class SecurityEventResponse(BaseModel):
     raw_event: dict[str, Any]
     normalized_data: dict[str, Any]
     asset_id: UUID | None
+    scenario_run_id: UUID | None
+    scenario_id: str | None
     asset: AssetReference | None
     created_at: datetime
 
@@ -79,6 +83,7 @@ class SecurityEventResponse(BaseModel):
 class SecurityEventFilters(BaseModel):
     hostname: str | None = Field(default=None, max_length=255)
     asset_id: UUID | None = None
+    scenario_run_id: UUID | None = None
     event_type: str | None = Field(default=None, max_length=64)
     source: str | None = Field(default=None, max_length=64)
     severity: EventSeverity | None = None

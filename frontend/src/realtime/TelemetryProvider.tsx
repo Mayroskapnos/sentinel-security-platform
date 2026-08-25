@@ -12,6 +12,10 @@ import type {
 } from "../types/core";
 import { TelemetryContext } from "./TelemetryContext";
 import {
+  authoritativeRefreshQueryKeys,
+  shouldRefreshAuthoritativeState,
+} from "./cacheRefresh";
+import {
   alertMatchesFilters,
   canInsertLiveAlert,
   canInsertLiveEvent,
@@ -54,10 +58,9 @@ export function TelemetryProvider({ children }: { children: ReactNode }) {
     const pendingAssetIds = new Set<string>();
 
     function refreshAuthoritativeState() {
-      void queryClient.invalidateQueries({ queryKey: queryKeys.events.all });
-      void queryClient.invalidateQueries({ queryKey: queryKeys.alerts.all });
-      void queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.all });
-      void queryClient.invalidateQueries({ queryKey: queryKeys.assets.all });
+      authoritativeRefreshQueryKeys().forEach((queryKey) => {
+        void queryClient.invalidateQueries({ queryKey });
+      });
     }
 
     function scheduleAggregateRefresh(assetId: string | null) {
@@ -204,11 +207,12 @@ export function TelemetryProvider({ children }: { children: ReactNode }) {
       }
 
       socket.onopen = () => {
-        const isReconnection = connectedBefore;
+        const refreshAfterConnect =
+          shouldRefreshAuthoritativeState(connectedBefore);
         connectedBefore = true;
         attempt = 0;
         setConnectionState("connected");
-        if (isReconnection) refreshAuthoritativeState();
+        if (refreshAfterConnect) refreshAuthoritativeState();
       };
       socket.onmessage = (message) => {
         if (typeof message.data !== "string") return;
@@ -220,6 +224,10 @@ export function TelemetryProvider({ children }: { children: ReactNode }) {
           parsed?.type === "alert_updated"
         ) {
           handleAlert(parsed.data);
+        } else if (parsed?.type.startsWith("simulation_")) {
+          void queryClient.invalidateQueries({
+            queryKey: queryKeys.simulator.all,
+          });
         }
       };
       socket.onerror = () => setConnectionState("error");

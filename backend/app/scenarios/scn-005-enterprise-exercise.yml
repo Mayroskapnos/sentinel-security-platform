@@ -1,0 +1,24 @@
+id: SCN-005
+name: Multi-Stage Enterprise Security Exercise
+description: Runs the complete safe credential, discovery, privilege, and database validation sequence inside the Corporate Lab.
+risk: low
+estimated_seconds: 48
+targets: [employee-01, admin-server, web-server, database]
+expected_detections: [DET-SSH-001, DET-SSH-002, DET-NET-001, DET-PRIV-001, DET-DB-001]
+steps:
+  - name: Credential activity
+    action: controlled_failed_authentication
+    target: employee-01
+    count: 10
+  - name: Successful authentication
+    action: controlled_successful_authentication
+    target: employee-01
+  - name: Internal service activity
+    action: internal_service_discovery
+    target: employee-01
+  - name: Privileged activity
+    action: controlled_privileged_activity
+    target: admin-server
+  - name: Database access
+    action: controlled_database_connection
+    target: employee-01

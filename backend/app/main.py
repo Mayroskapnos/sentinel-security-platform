@@ -7,13 +7,15 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from sqlalchemy.exc import SQLAlchemyError
 
 from app.api.v1.router import api_router
 from app.core.config import get_settings
 from app.core.errors import AppError
 from app.core.logging import configure_logging
-from app.db.session import close_database
+from app.db.session import async_session_factory, close_database
 from app.realtime.manager import websocket_manager
+from app.services.simulator import scenario_orchestrator
 
 settings = get_settings()
 configure_logging(settings.log_level)
@@ -23,7 +25,17 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     logger.info("SENTINEL API starting")
+    try:
+        async with async_session_factory() as session:
+            recovered = await scenario_orchestrator.recover_stale(session)
+            if recovered:
+                logger.warning("stale_scenario_runs_failed count=%d", recovered)
+    except SQLAlchemyError:
+        # Migration commands run before uvicorn in the container. This guard keeps
+        # isolated API/WebSocket tests usable when their external DB is intentionally absent.
+        logger.warning("stale_scenario_recovery_skipped", exc_info=True)
     yield
+    await scenario_orchestrator.shutdown()
     await websocket_manager.close_all()
     await close_database()
     logger.info("SENTINEL API stopped")

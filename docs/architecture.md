@@ -1,6 +1,6 @@
 # SENTINEL Architecture
 
-This document describes the implemented Milestone 4 architecture. Incident correlation, attack simulation, active response, and offensive workflows are not operational components.
+This document describes the implemented Milestone 5 architecture. Incident correlation, the Attack Map, active response, and general offensive workflows are not operational components.
 
 ## Runtime topology
 
@@ -9,6 +9,7 @@ flowchart LR
     Producer[Synthetic Producer]
     subgraph Lab[Corporate Docker Lab]
         Gateway[Loopback Portal Gateway]
+        Simulator[Fixed Action Broker]
         Web[Web Server]
         Hosts[Employee and Admin Hosts]
         LabDB[(Corporate PostgreSQL)]
@@ -24,6 +25,9 @@ flowchart LR
     UI[React SOC Dashboard]
 
     Producer --> Ingest
+    UI -->|run fixed scenario| Ingest
+    Ingest -->|fixed gateway route| Simulator
+    Simulator --> Hosts
     Gateway --> Web
     Web --> Collector
     Hosts --> Collector
@@ -42,6 +46,40 @@ flowchart LR
 ```
 
 The frontend Nginx proxies SENTINEL HTTP and WebSocket traffic. SENTINEL PostgreSQL, FastAPI, the frontend, the collector, and a hardened fixed-upstream portal gateway share the Compose management network. That gateway alone also joins DMZ to make the safe portal reachable at a loopback-only host port; the web app itself has no management membership or host binding. Lab services otherwise occupy separate internal DMZ, employee, and server networks. The collector reads named log volumes rather than joining those networks, and it has no Docker socket access. The corporate PostgreSQL is a separate service, volume, database, and credential boundary from SENTINEL PostgreSQL.
+
+## Simulator architecture
+
+```mermaid
+flowchart LR
+    UI[Attack Simulator UI] --> API[Simulator API]
+    API --> Orchestrator[Scenario Orchestrator]
+    Orchestrator --> Registry[Safe Action Registry]
+    Registry --> Gateway[Unpublished fixed gateway route]
+
+    subgraph Lab[Internal Corporate Lab networks]
+        Broker[Non-root fixed Action Broker]
+        E1[Employee 01]
+        Admin[Admin Server]
+        Web[Web Server]
+        DB[Corporate Database]
+    end
+
+    Gateway --> Broker
+    Broker --> E1
+    Broker --> Admin
+    E1 --> Web
+    E1 --> Admin
+    E1 --> DB
+    Lab --> Collector[Read-only Collector]
+    Collector --> Telemetry[Telemetry API]
+    Telemetry --> Detection[Detection Engine]
+    Detection --> Alerts[Alerts]
+    Telemetry --> WS[WebSockets]
+    Alerts --> WS
+    WS --> UI
+```
+
+The backend remains on `sentinel_management`; the broker never joins it. The gateway exposes only the fixed `/internal/simulator/` upstream on an unpublished internal listener. Broker and host APIs require the dedicated simulation key and have no generic execution route.
 
 ## Ingestion and detection lifecycle
 
@@ -76,6 +114,7 @@ erDiagram
     DETECTION_RULE ||--o{ ALERT : "creates"
     ALERT ||--o{ ALERT_EVENT : "contains evidence"
     SECURITY_EVENT ||--o{ ALERT_EVENT : "supports"
+    SCENARIO_RUN ||--o{ SECURITY_EVENT : "attributes"
 
     DETECTION_RULE {
         uuid id PK
@@ -99,6 +138,14 @@ erDiagram
     ALERT_EVENT {
         uuid alert_id PK_FK
         uuid event_id PK_FK
+    }
+    SCENARIO_RUN {
+        uuid id PK
+        string scenario_id
+        string status
+        string active_slot UK
+        jsonb steps
+        jsonb expected_detections
     }
 ```
 
@@ -127,6 +174,8 @@ The single-process engine serializes alert creation to avoid local threshold rac
 ## Persistence lifecycle
 
 The backend container runs `alembic upgrade head`, synchronizes rules, synchronizes the five canonical lab assets, and then starts Uvicorn. Alembic is the schema mechanism; application startup never calls `create_all`. Historical synthetic seeding remains explicit. Lab service telemetry and demonstration alerts pass through the same API, normalization, persistence, WebSocket, and detection path.
+
+Scenario execution is backend-owned and persistent. WebSocket progress is advisory; browser refresh or reconnect refetches the ScenarioRun. An `active_slot` unique constraint and prerequisite query enforce one run. Startup fails stale active runs rather than resuming actions. Run summaries join attributed SecurityEvents through AlertEvent evidence to real Alerts.
 
 Collector source readers persist byte offsets and file fingerprints in `lab_collector_state`. They advance after successful delivery or a rejected malformed record, retry API failures with bounded exponential backoff, and isolate source-reader failures from other sources. See [Corporate Lab](corporate-lab.md) for topology and operational details.
 

@@ -61,6 +61,12 @@ services:
       TELEMETRY_MAX_BODY_BYTES: ${TELEMETRY_MAX_BODY_BYTES:-262144}
       COLLECTOR_API_KEY: ${COLLECTOR_API_KEY:-sentinel_local_collector_key_change_me}
       LAB_TELEMETRY_STALE_SECONDS: ${LAB_TELEMETRY_STALE_SECONDS:-120}
+      SENTINEL_SIMULATOR_ENABLED: ${SENTINEL_SIMULATOR_ENABLED:-true}
+      SENTINEL_SIMULATION_KEY: ${SENTINEL_SIMULATION_KEY:-sentinel_local_simulation_key_change_me}
+      SIMULATOR_CONTROL_URL: http://sentinel-lab-gateway:8082
+      SIMULATOR_ACTION_TIMEOUT_SECONDS: ${SIMULATOR_ACTION_TIMEOUT_SECONDS:-40}
+      SIMULATOR_SCENARIO_TIMEOUT_SECONDS: ${SIMULATOR_SCENARIO_TIMEOUT_SECONDS:-180}
+      SIMULATOR_SETTLE_SECONDS: ${SIMULATOR_SETTLE_SECONDS:-4}
       SENTINEL_ENV: ${SENTINEL_ENV:-development}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
     depends_on:
@@ -215,6 +221,8 @@ services:
     depends_on:
       sentinel-web:
         condition: service_healthy
+      sentinel-simulator:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/health"]
       interval: 10s
@@ -249,6 +257,7 @@ services:
       LAB_DB_NAME: ${LAB_POSTGRES_DB:-corp_demo}
       LAB_DB_USER: ${LAB_DB_USER:-lab_app}
       LAB_DB_PASSWORD: ${LAB_DB_PASSWORD:-corporate_lab_db_demo}
+      SENTINEL_SIMULATION_KEY: ${SENTINEL_SIMULATION_KEY:-sentinel_local_simulation_key_change_me}
       TZ: UTC
     depends_on:
       sentinel-web:
@@ -272,6 +281,7 @@ services:
       LAB_DB_NAME: ${LAB_POSTGRES_DB:-corp_demo}
       LAB_DB_USER: ${LAB_DB_USER:-lab_app}
       LAB_DB_PASSWORD: ${LAB_DB_PASSWORD:-corporate_lab_db_demo}
+      SENTINEL_SIMULATION_KEY: ${SENTINEL_SIMULATION_KEY:-sentinel_local_simulation_key_change_me}
       TZ: UTC
     depends_on:
       sentinel-web:
@@ -295,6 +305,7 @@ services:
       LAB_DB_NAME: ${LAB_POSTGRES_DB:-corp_demo}
       LAB_DB_USER: ${LAB_DB_USER:-lab_app}
       LAB_DB_PASSWORD: ${LAB_DB_PASSWORD:-corporate_lab_db_demo}
+      SENTINEL_SIMULATION_KEY: ${SENTINEL_SIMULATION_KEY:-sentinel_local_simulation_key_change_me}
       TZ: UTC
     volumes:
       - lab_admin_logs:/var/log/sentinel-lab
@@ -358,6 +369,47 @@ services:
       - lab_collector_state:/var/lib/sentinel-collector
     networks:
       - sentinel_management
+    logging: *bounded-logging
+
+  sentinel-simulator:
+    container_name: sentinel-simulator
+    build:
+      context: ./lab/simulator
+    environment:
+      SENTINEL_SIMULATION_KEY: ${SENTINEL_SIMULATION_KEY:-sentinel_local_simulation_key_change_me}
+      TZ: UTC
+    depends_on:
+      sentinel-employee-01:
+        condition: service_healthy
+      sentinel-admin:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import os,urllib.request; request=urllib.request.Request('http://127.0.0.1:8080/internal/simulator/health', headers={'X-Sentinel-Simulation-Key':os.environ['SENTINEL_SIMULATION_KEY']}); urllib.request.urlopen(request, timeout=5)",
+        ]
+      interval: 10s
+      timeout: 8s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      sentinel_dmz:
+        ipv4_address: 10.10.10.50
+      sentinel_employee:
+        ipv4_address: 10.10.20.50
+      sentinel_server:
+        ipv4_address: 10.10.30.50
     logging: *bounded-logging
 
 volumes:

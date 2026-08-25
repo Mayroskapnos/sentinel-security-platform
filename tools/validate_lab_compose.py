@@ -35,6 +35,7 @@ def main() -> int:
         "sentinel-employee-02",
         "sentinel-collector",
         "sentinel-web",
+        "sentinel-simulator",
     )
     for service_name in unexposed:
         assert not services[service_name].get("ports"), f"{service_name} must not publish ports"
@@ -53,6 +54,17 @@ def main() -> int:
     assert set(services["sentinel-employee-01"]["networks"]) == {"sentinel_employee"}
     assert set(services["sentinel-employee-02"]["networks"]) == {"sentinel_employee"}
     assert "sentinel_dmz" not in services["sentinel-db"]["networks"]
+    assert set(services["sentinel-simulator"]["networks"]) == {
+        "sentinel_dmz",
+        "sentinel_employee",
+        "sentinel_server",
+    }
+    simulator = services["sentinel-simulator"]
+    assert simulator.get("read_only") is True
+    assert set(simulator.get("cap_drop", [])) == {"ALL"}
+    assert "no-new-privileges:true" in simulator.get("security_opt", [])
+    assert not simulator.get("volumes")
+    assert not simulator.get("ports")
 
     for service_name, service in services.items():
         for volume in service.get("volumes", []):

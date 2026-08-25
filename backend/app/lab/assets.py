@@ -7,6 +7,7 @@ LAB_ASSET_NAMESPACE = UUID("8abda546-b4e1-4c61-bd99-09921736e38d")
 LAB_HOSTNAMES = ("web-server", "employee-01", "employee-02", "admin-server", "database")
 CORPORATE_LAB_SOURCES = (
     "container_health",
+    "database_client",
     "linux_auth",
     "linux_process",
     "linux_privilege",

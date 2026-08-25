@@ -19,6 +19,8 @@ class SecurityEventRepository:
             query = query.where(SecurityEvent.hostname.ilike(f"%{filters.hostname.strip()}%"))
         if filters.asset_id:
             query = query.where(SecurityEvent.asset_id == filters.asset_id)
+        if filters.scenario_run_id:
+            query = query.where(SecurityEvent.scenario_run_id == filters.scenario_run_id)
         if filters.event_type:
             query = query.where(SecurityEvent.event_type == filters.event_type)
         if filters.source:

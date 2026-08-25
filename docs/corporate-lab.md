@@ -40,7 +40,7 @@ flowchart LR
     Collector --> API
 ```
 
-`sentinel_dmz`, `sentinel_employee`, and `sentinel_server` are declared `internal: true`. The collector is attached only to `sentinel_management`; it reads explicit named log volumes and has no Docker socket. Because Docker Desktop does not make a port published directly from an internal-only network reachable, a fixed-upstream, unprivileged `sentinel-lab-gateway` bridges management to DMZ and is the only lab component published to the host, at `127.0.0.1:8081` by default. The web service itself publishes no port and never joins management.
+`sentinel_dmz`, `sentinel_employee`, and `sentinel_server` are declared `internal: true`. The collector is attached only to `sentinel_management`; it reads explicit named log volumes and has no Docker socket. Because Docker Desktop does not make a port published directly from an internal-only network reachable, a fixed-upstream, unprivileged `sentinel-lab-gateway` bridges management to DMZ and is the only lab component published to the host, at `127.0.0.1:8081` by default. The web service itself publishes no port and never joins management. An unpublished gateway listener proxies only the fixed internal simulator path to the non-root lab-only action broker.
 
 ## Containers and addresses
 
@@ -52,7 +52,8 @@ flowchart LR
 | `sentinel-admin` | `admin-server` | Server / `10.10.30.10` | Employee `10.10.20.30` for controlled SSH |
 | `sentinel-db` | `database` | Server / `10.10.30.20` | Employee `10.10.20.21` for the explicit DB demo |
 | `sentinel-collector` | Not an inventory asset | Management only | Read-only log mounts |
-| `sentinel-lab-gateway` | Not an inventory asset | Management and DMZ | Fixed HTTP proxy to `sentinel-web` only |
+| `sentinel-lab-gateway` | Not an inventory asset | Management and DMZ | Fixed portal and unpublished simulator upstreams |
+| `sentinel-simulator` | Not an inventory asset | DMZ, employee, and server | Fixed, key-authenticated scenario action broker |
 
 Multi-homed service interfaces model explicit permitted flows without connecting workstations or the collector to every zone. Normalized events use canonical inventory addresses; actual service-observed addresses remain in raw evidence where an alias is required.
 

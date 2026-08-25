@@ -4,6 +4,7 @@ from pathlib import Path
 import pytest
 
 from app.collector.adapters import (
+    DatabaseClientConnectionAdapter,
     LinuxAuthAdapter,
     NetworkConnectionAdapter,
     PostgresAdapter,
@@ -147,6 +148,62 @@ def test_database_connection_does_not_assert_collection() -> None:
     assert event.source_ip == "10.10.10.10"
     assert event.normalized_data["connection_evidence"] is True
     assert event.normalized_data["data_collection_asserted"] is False
+
+
+def test_actual_database_client_result_is_connection_only_evidence() -> None:
+    event = DatabaseClientConnectionAdapter().parse(
+        {
+            "kind": "database_client_connection",
+            "timestamp": TIMESTAMP,
+            "hostname": "employee-01",
+            "source_ip": "10.10.20.10",
+            "destination_ip": "10.10.30.20",
+            "destination_port": 5432,
+            "username": "demo-user",
+            "database": "corp_demo",
+            "result": "success",
+        }
+    )
+
+    assert event.event_type == "database_connection"
+    assert event.source == "database_client"
+    assert event.normalized_data["connection_evidence"] is True
+    assert event.normalized_data["data_collection_asserted"] is False
+
+
+def test_structured_and_postgres_events_preserve_explicit_scenario_attribution() -> None:
+    run_id = "1a7a65a3-4cb0-4fa6-a2ea-1e266594ee8d"
+    network = NetworkConnectionAdapter().parse(
+        {
+            "kind": "network_connection",
+            "timestamp": TIMESTAMP,
+            "hostname": "employee-01",
+            "source_ip": "10.10.20.10",
+            "destination_ip": "10.10.20.20",
+            "destination_port": 8080,
+            "process_name": "lab-service-check",
+            "result": "success",
+            "scenario_run_id": run_id,
+            "scenario_id": "SCN-005",
+        }
+    )
+    database = PostgresAdapter().parse(
+        {
+            "timestamp": TIMESTAMP,
+            "user": "lab_app",
+            "dbname": "corp_demo",
+            "remote_host": "10.10.20.10",
+            "application_name": f"sentinel-sim:{run_id}:SCN-005",
+            "message": "connection authorized: user=lab_app database=corp_demo",
+        }
+    )
+
+    assert str(network.scenario_run_id) == run_id
+    assert network.normalized_data["scenario_id"] == "SCN-005"
+    assert database is not None
+    assert str(database.scenario_run_id) == run_id
+    assert database.scenario_id == "SCN-005"
+    assert database.normalized_data["data_collection_asserted"] is False
 
 
 def test_postgresql_native_timestamp_and_local_healthcheck_are_supported() -> None:

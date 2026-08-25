@@ -47,5 +47,22 @@ class AlertStatus(StrEnum):
     FALSE_POSITIVE = "false_positive"
 
 
+class ScenarioRunStatus(StrEnum):
+    PENDING = "pending"
+    RUNNING = "running"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+
+
+class ScenarioStepStatus(StrEnum):
+    PENDING = "pending"
+    RUNNING = "running"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    SKIPPED = "skipped"
+    CANCELLED = "cancelled"
+
+
 def enum_values(enum_class: type[StrEnum]) -> list[str]:
     return [member.value for member in enum_class]
