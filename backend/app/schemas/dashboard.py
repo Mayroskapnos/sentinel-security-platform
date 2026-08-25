@@ -10,6 +10,9 @@ class DashboardSummary(BaseModel):
     high_risk_assets: int = Field(ge=0)
     events_today: int = Field(ge=0)
     events_last_hour: int = Field(ge=0)
+    open_alerts: int = Field(ge=0)
+    critical_alerts: int = Field(ge=0)
+    high_alerts: int = Field(ge=0)
 
 
 class TimeBucket(BaseModel):

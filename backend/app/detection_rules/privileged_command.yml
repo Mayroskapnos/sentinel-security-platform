@@ -1,0 +1,16 @@
+id: DET-PRIV-001
+name: Unexpected Privilege Escalation Activity
+description: A successful sudo command that warrants analyst review.
+type: single_event
+severity: high
+enabled: true
+match:
+  event_type: privilege
+  action: sudo_command
+  status: success
+group_by: [asset_id, username, action]
+suppression_seconds: 300
+mitre:
+  tactic: Privilege Escalation
+  technique_id: T1548.003
+  technique_name: Sudo and Sudo Caching

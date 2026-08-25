@@ -1,0 +1,13 @@
+id: DET-DB-001
+name: Unexpected Workstation-to-Database Connection
+description: A database-connection event from a workstation to a database asset should be reviewed; this rule does not assert that data was queried or collected.
+type: single_event
+severity: medium
+enabled: true
+match:
+  event_type: database_connection
+group_by: [source_ip, destination_ip, username]
+context:
+  source_asset_type: workstation
+  destination_asset_type: database
+suppression_seconds: 300

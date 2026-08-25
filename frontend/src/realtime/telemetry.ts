@@ -1,4 +1,7 @@
 import type {
+  Alert,
+  AlertFilters,
+  AlertStatus,
   EventFilters,
   EventSeverity,
   Page,
@@ -25,7 +28,25 @@ export interface TelemetryStatusMessage {
   };
 }
 
-export type TelemetryMessage = SecurityEventMessage | TelemetryStatusMessage;
+export interface AlertCreatedMessage {
+  version: "1";
+  type: "alert_created";
+  timestamp: string;
+  data: Alert;
+}
+
+export interface AlertUpdatedMessage {
+  version: "1";
+  type: "alert_updated";
+  timestamp: string;
+  data: Alert;
+}
+
+export type TelemetryMessage =
+  | SecurityEventMessage
+  | TelemetryStatusMessage
+  | AlertCreatedMessage
+  | AlertUpdatedMessage;
 
 const severities = new Set<EventSeverity>([
   "informational",
@@ -33,6 +54,12 @@ const severities = new Set<EventSeverity>([
   "medium",
   "high",
   "critical",
+]);
+const alertStatuses = new Set<AlertStatus>([
+  "new",
+  "investigating",
+  "resolved",
+  "false_positive",
 ]);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -86,6 +113,40 @@ function isSecurityEvent(value: unknown): value is SecurityEvent {
   );
 }
 
+function isAlert(value: unknown): value is Alert {
+  return (
+    isRecord(value) &&
+    typeof value.id === "string" &&
+    typeof value.timestamp === "string" &&
+    typeof value.title === "string" &&
+    typeof value.description === "string" &&
+    isSeverity(value.severity) &&
+    typeof value.status === "string" &&
+    alertStatuses.has(value.status as AlertStatus) &&
+    typeof value.detection_rule_id === "string" &&
+    isRecord(value.detection_rule) &&
+    typeof value.detection_rule.id === "string" &&
+    typeof value.detection_rule.rule_id === "string" &&
+    typeof value.detection_rule.name === "string" &&
+    isNullableString(value.asset_id) &&
+    isAssetReference(value.asset) &&
+    isNullableString(value.source_ip) &&
+    isNullableString(value.destination_ip) &&
+    isNullableString(value.username) &&
+    typeof value.risk_score === "number" &&
+    isNullableString(value.mitre_tactic) &&
+    isNullableString(value.mitre_technique_id) &&
+    isNullableString(value.mitre_technique_name) &&
+    isRecord(value.evidence) &&
+    isRecord(value.metadata_json) &&
+    typeof value.evidence_count === "number" &&
+    typeof value.first_event_at === "string" &&
+    typeof value.last_event_at === "string" &&
+    typeof value.created_at === "string" &&
+    typeof value.updated_at === "string"
+  );
+}
+
 export function parseTelemetryMessage(raw: string): TelemetryMessage | null {
   let parsed: unknown;
   try {
@@ -112,6 +173,12 @@ export function parseTelemetryMessage(raw: string): TelemetryMessage | null {
     typeof parsed.data.connected_clients === "number"
   ) {
     return parsed as unknown as TelemetryStatusMessage;
+  }
+  if (parsed.type === "alert_created" && isAlert(parsed.data)) {
+    return parsed as unknown as AlertCreatedMessage;
+  }
+  if (parsed.type === "alert_updated" && isAlert(parsed.data)) {
+    return parsed as unknown as AlertUpdatedMessage;
   }
   return null;
 }
@@ -168,6 +235,62 @@ export function mergeEventPage(
   return {
     ...page,
     items,
+    total,
+    pages: Math.ceil(total / page.page_size),
+  };
+}
+
+export function alertMatchesFilters(
+  alert: Alert,
+  filters: AlertFilters,
+): boolean {
+  const contains = (value: string | null, expected: string | undefined) =>
+    !expected || value?.toLowerCase().includes(expected.toLowerCase()) === true;
+  if (filters.severity && alert.severity !== filters.severity) return false;
+  if (filters.status && alert.status !== filters.status) return false;
+  if (filters.active_only && !["new", "investigating"].includes(alert.status))
+    return false;
+  if (filters.rule_id && alert.detection_rule.rule_id !== filters.rule_id)
+    return false;
+  if (filters.asset_id && alert.asset_id !== filters.asset_id) return false;
+  if (filters.source_ip && alert.source_ip !== filters.source_ip) return false;
+  if (filters.destination_ip && alert.destination_ip !== filters.destination_ip)
+    return false;
+  if (!contains(alert.username, filters.username)) return false;
+  const timestamp = Date.parse(alert.timestamp);
+  if (filters.start_time && timestamp < Date.parse(filters.start_time))
+    return false;
+  if (filters.end_time && timestamp > Date.parse(filters.end_time))
+    return false;
+  return true;
+}
+
+export function canInsertLiveAlert(filters: AlertFilters): boolean {
+  return (filters.page ?? 1) === 1 && !filters.start_time && !filters.end_time;
+}
+
+export function mergeAlertPage(page: Page<Alert>, alert: Alert): Page<Alert> {
+  const alreadyPresent = page.items.some((item) => item.id === alert.id);
+  const items = [alert, ...page.items.filter((item) => item.id !== alert.id)]
+    .sort((left, right) => {
+      const timeDifference =
+        Date.parse(right.timestamp) - Date.parse(left.timestamp);
+      return timeDifference || right.id.localeCompare(left.id);
+    })
+    .slice(0, page.page_size);
+  const total = page.total + (alreadyPresent ? 0 : 1);
+  return { ...page, items, total, pages: Math.ceil(total / page.page_size) };
+}
+
+export function removeAlertFromPage(
+  page: Page<Alert>,
+  alertId: string,
+): Page<Alert> {
+  if (!page.items.some((item) => item.id === alertId)) return page;
+  const total = Math.max(0, page.total - 1);
+  return {
+    ...page,
+    items: page.items.filter((item) => item.id !== alertId),
     total,
     pages: Math.ceil(total / page.page_size),
   };

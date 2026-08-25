@@ -2,9 +2,9 @@
 
 **Security Monitoring & Attack Detection Platform**
 
-SENTINEL is an experimental security monitoring and Purple Team platform for controlled environments. It provides persistent asset inventory, normalized security-event storage, live telemetry delivery, investigation workflows, and database-backed operational dashboards.
+SENTINEL is an experimental security monitoring and Purple Team platform for controlled environments. It provides persistent asset inventory, normalized security-event storage, deterministic detections, evidence-backed alerts, live delivery, investigation workflows, and database-backed operational dashboards.
 
-> Current status: **Milestone 2 - Live Telemetry**. Detection, alerts, incidents, MITRE ATT&CK mapping, attack simulation, and the corporate lab are future milestones.
+> Current status: **Milestone 3 - Detection Engine**. Incident correlation, attack simulation, active response, and the corporate lab remain future milestones.
 
 ## What is SENTINEL?
 
@@ -13,6 +13,10 @@ SENTINEL is a portfolio-grade exploration of the architecture behind SIEM, EDR/X
 ## Current features
 
 - Persistent PostgreSQL Asset and SecurityEvent domain models
+- Persistent DetectionRule, Alert, and relational Alert-to-SecurityEvent evidence models
+- Safe validated YAML rule loading with database synchronization and analyst enable/disable state
+- Explainable threshold, sequence, and contextual single-event detections with five bundled rules
+- Deterministic suppression, workflow transitions, ATT&CK metadata, and risk prioritization
 - SQLAlchemy 2.x async data access with constrained, indexed schemas
 - Alembic-managed schema lifecycle; application startup never calls `create_all`
 - Versioned asset and event APIs with validation, filtering, and bounded pagination
@@ -20,10 +24,10 @@ SENTINEL is a portfolio-grade exploration of the architecture behind SIEM, EDR/X
 - Typed WebSocket delivery after PostgreSQL commit, with browser-origin checks and per-client failure isolation
 - Automatic frontend reconnection, missed-event REST recovery, ID deduplication, and live row cues
 - Debounced dashboard and asset-detail updates through TanStack Query
-- Safe bounded synthetic producer with single, stream, and burst modes
+- Safe bounded synthetic producer with single, stream, burst, and detection-demo modes
 - Database-side dashboard summary and aggregation queries
 - Idempotent demo seeding with five lab assets and 180 coherent historical events
-- Searchable Assets, Asset Details, Events investigation, and safe JSON evidence views
+- Searchable Assets, Asset Details, Events, Alerts, Alert Detail, and Detection Rules workflows
 - Structured JSON logging and structured API errors
 - Loopback-bound Docker services running as unprivileged users
 
@@ -35,7 +39,12 @@ flowchart LR
     API --> Normalizer[Event normalizer]
     Normalizer --> Service[Security event service]
     Service --> DB[(PostgreSQL 16)]
-    Service -->|after commit| WS[WebSocket manager]
+    Service -->|committed event| WS[WebSocket manager]
+    Service --> Engine[Detection engine]
+    Rules[Validated YAML and database state] --> Engine
+    Engine --> Alerts[Alert service]
+    Alerts --> DB
+    Alerts -->|committed alert| WS
     WS --> Proxy[Nginx]
     Proxy --> UI[React dashboard]
     UI -->|authoritative REST queries| Proxy
@@ -43,7 +52,7 @@ flowchart LR
     Seed[Deterministic demo seed] --> DB
 ```
 
-PostgreSQL remains the source of truth. WebSockets provide low-latency delivery; REST refetches repair any gap after reconnection. See [Architecture](docs/architecture.md), [Telemetry](docs/telemetry.md), [API Reference](docs/api.md), and [Security Model](docs/security-model.md).
+PostgreSQL remains the source of truth. WebSockets provide low-latency delivery; REST refetches repair any gap after reconnection. See [Architecture](docs/architecture.md), [Detection Engine](docs/detection-engine.md), [Telemetry](docs/telemetry.md), [API Reference](docs/api.md), and [Security Model](docs/security-model.md).
 
 ## Technology stack
 
@@ -67,12 +76,14 @@ docker compose up --build -d
 docker compose exec -T backend python -m app.cli.seed
 ```
 
-The backend applies `alembic upgrade head` before starting. Seeding is explicit and idempotent. The same commands work in PowerShell.
+The backend applies `alembic upgrade head` and synchronizes bundled rules before starting. Seeding is explicit and idempotent. The same commands work in PowerShell.
 
 Open:
 
 - Dashboard: <http://localhost:3000>
 - Events: <http://localhost:3000/events>
+- Alerts: <http://localhost:3000/alerts>
+- Detection rules: <http://localhost:3000/rules>
 - API health: <http://localhost:8000/api/v1/health>
 - OpenAPI: <http://localhost:8000/api/docs>
 
@@ -107,6 +118,22 @@ python tools/telemetry_producer.py --mode burst --count 100
 
 The producer targets the seeded hosts and emits synthetic development telemetry only. It does not collect endpoint data or simulate attacks. `Ctrl+C` stops a stream cleanly.
 
+## Detection demo
+
+With the stack seeded, open `/events` and `/alerts`, then send ten synthetic failed-SSH records:
+
+```bash
+make detection-demo
+```
+
+PowerShell alternative:
+
+```powershell
+python tools/telemetry_producer.py --mode detection-demo
+```
+
+The tenth qualifying event triggers `DET-SSH-001`. The event and alert commit before their respective WebSocket messages, so both appear live and remain after restart. Additional matching events during the five-minute suppression period update the existing alert instead of flooding the analyst. This is rule-testing telemetry only; it performs no authentication or attack.
+
 ## Demo data
 
 ```bash
@@ -125,7 +152,7 @@ Equivalent Make targets are `make migrate`, `make seed`, `make demo`, and `make 
 | `admin-server` | Server | Server | `10.10.30.10` |
 | `database` | Database | Server | `10.10.30.20` |
 
-These are database records only. Milestone 2 does not create lab containers.
+These are inventory records only. The corporate lab containers remain outside Milestone 3.
 
 ## Local development
 
@@ -139,6 +166,7 @@ source .venv/bin/activate
 python -m pip install -r requirements-dev.txt
 export DATABASE_URL=postgresql+asyncpg://sentinel:sentinel_dev_only_change_me@localhost:5432/sentinel
 alembic upgrade head
+python -m app.cli.sync_rules
 python -m app.cli.seed
 uvicorn app.main:app --reload
 ```
@@ -151,6 +179,7 @@ python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 $env:DATABASE_URL = 'postgresql+asyncpg://sentinel:sentinel_dev_only_change_me@localhost:5432/sentinel'
 alembic upgrade head
+python -m app.cli.sync_rules
 python -m app.cli.seed
 uvicorn app.main:app --reload
 ```
@@ -191,13 +220,13 @@ Backend tests use an isolated in-memory database. Migration validation runs agai
 
 ## Security model
 
-Published services bind to `127.0.0.1`. The telemetry API accepts normalized defensive data but performs no collection, scanning, detection, or offensive action. WebSocket browser origins are allow-listed for local development. A real deployment must add collector authentication, TLS, and production ingress controls before exposing ingestion.
+Published services bind to `127.0.0.1`. The telemetry API accepts normalized defensive data and evaluates deterministic rules, but performs no collection, scanning, arbitrary code execution, or offensive action. WebSocket browser origins are allow-listed for local development. A real deployment must add collector authentication, TLS, durable delivery, and production ingress controls before exposing ingestion.
 
 ## Roadmap
 
 1. **SENTINEL Core - complete:** persistent assets/events, normalized storage APIs, investigation UI, and dashboard aggregates
 2. **Live Telemetry - complete:** dedicated ingestion, asset resolution, WebSocket delivery, live query updates, and synthetic producer
-3. **Detection Engine:** deterministic rules and alerts
+3. **Detection Engine - complete:** deterministic rules, suppression, evidence-backed alerts, live delivery, and analyst workflows
 4. **Corporate Docker Lab:** isolated enterprise service simulations
 5. **Attack Simulator:** safe, allow-listed scenarios
 6. **Network Topology:** backend-driven graph

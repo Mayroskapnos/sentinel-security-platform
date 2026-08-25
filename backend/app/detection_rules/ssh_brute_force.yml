@@ -1,0 +1,19 @@
+id: DET-SSH-001
+name: SSH Brute Force Activity
+description: Ten failed SSH authentication attempts from one source to one destination within 60 seconds.
+type: threshold
+severity: high
+enabled: true
+match:
+  event_type: authentication
+  action: ssh_login
+  status: failed
+group_by: [source_ip, destination_ip]
+threshold:
+  count: 10
+  timeframe_seconds: 60
+suppression_seconds: 300
+mitre:
+  tactic: Credential Access
+  technique_id: T1110
+  technique_name: Brute Force

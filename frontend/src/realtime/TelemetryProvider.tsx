@@ -2,14 +2,25 @@ import { useQueryClient } from "@tanstack/react-query";
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 
 import { queryKeys } from "../hooks/useCoreData";
-import type { Asset, EventFilters, Page, SecurityEvent } from "../types/core";
+import type {
+  Alert,
+  AlertFilters,
+  Asset,
+  EventFilters,
+  Page,
+  SecurityEvent,
+} from "../types/core";
 import { TelemetryContext } from "./TelemetryContext";
 import {
+  alertMatchesFilters,
+  canInsertLiveAlert,
   canInsertLiveEvent,
   eventMatchesFilters,
+  mergeAlertPage,
   mergeEventPage,
   parseTelemetryMessage,
   reconnectDelay,
+  removeAlertFromPage,
   type TelemetryConnectionState,
   telemetryWebSocketUrl,
 } from "./telemetry";
@@ -24,10 +35,16 @@ export function TelemetryProvider({ children }: { children: ReactNode }) {
   const [liveEventIds, setLiveEventIds] = useState<ReadonlySet<string>>(
     () => new Set(),
   );
+  const [receivedAlerts, setReceivedAlerts] = useState<readonly Alert[]>([]);
+  const [liveAlertIds, setLiveAlertIds] = useState<ReadonlySet<string>>(
+    () => new Set(),
+  );
   const liveTimers = useRef(new Map<string, number>());
+  const liveAlertTimers = useRef(new Map<string, number>());
 
   useEffect(() => {
     const timers = liveTimers.current;
+    const alertTimers = liveAlertTimers.current;
     let disposed = false;
     let socket: WebSocket | null = null;
     let reconnectTimer: number | undefined;
@@ -38,6 +55,7 @@ export function TelemetryProvider({ children }: { children: ReactNode }) {
 
     function refreshAuthoritativeState() {
       void queryClient.invalidateQueries({ queryKey: queryKeys.events.all });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.alerts.all });
       void queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.all });
       void queryClient.invalidateQueries({ queryKey: queryKeys.assets.all });
     }
@@ -73,6 +91,21 @@ export function TelemetryProvider({ children }: { children: ReactNode }) {
         timers.delete(eventId);
       }, 5_000);
       timers.set(eventId, timer);
+    }
+
+    function markAlertLive(alertId: string) {
+      const existing = alertTimers.get(alertId);
+      if (existing !== undefined) window.clearTimeout(existing);
+      setLiveAlertIds((current) => new Set(current).add(alertId));
+      const timer = window.setTimeout(() => {
+        setLiveAlertIds((current) => {
+          const next = new Set(current);
+          next.delete(alertId);
+          return next;
+        });
+        alertTimers.delete(alertId);
+      }, 5_000);
+      alertTimers.set(alertId, timer);
     }
 
     function handleSecurityEvent(event: SecurityEvent) {
@@ -116,6 +149,41 @@ export function TelemetryProvider({ children }: { children: ReactNode }) {
       scheduleAggregateRefresh(event.asset_id);
     }
 
+    function handleAlert(alert: Alert) {
+      setReceivedAlerts((current) =>
+        [alert, ...current.filter((item) => item.id !== alert.id)].slice(
+          0,
+          100,
+        ),
+      );
+      markAlertLive(alert.id);
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.alerts.detail(alert.id),
+        refetchType: "active",
+      });
+
+      queryClient
+        .getQueryCache()
+        .findAll({ queryKey: queryKeys.alerts.lists })
+        .forEach((query) => {
+          const filters = query.queryKey[2] as AlertFilters;
+          queryClient.setQueryData<Page<Alert>>(query.queryKey, (current) => {
+            if (!current) return current;
+            const isPresent = current.items.some(
+              (item) => item.id === alert.id,
+            );
+            if (!alertMatchesFilters(alert, filters)) {
+              return removeAlertFromPage(current, alert.id);
+            }
+            if (isPresent || canInsertLiveAlert(filters)) {
+              return mergeAlertPage(current, alert);
+            }
+            return current;
+          });
+        });
+      scheduleAggregateRefresh(alert.asset_id);
+    }
+
     function scheduleReconnect() {
       if (disposed) return;
       setConnectionState("reconnecting");
@@ -147,6 +215,11 @@ export function TelemetryProvider({ children }: { children: ReactNode }) {
         const parsed = parseTelemetryMessage(message.data);
         if (parsed?.type === "security_event") {
           handleSecurityEvent(parsed.data);
+        } else if (
+          parsed?.type === "alert_created" ||
+          parsed?.type === "alert_updated"
+        ) {
+          handleAlert(parsed.data);
         }
       };
       socket.onerror = () => setConnectionState("error");
@@ -164,6 +237,8 @@ export function TelemetryProvider({ children }: { children: ReactNode }) {
       if (refreshTimer !== undefined) window.clearTimeout(refreshTimer);
       timers.forEach((timer) => window.clearTimeout(timer));
       timers.clear();
+      alertTimers.forEach((timer) => window.clearTimeout(timer));
+      alertTimers.clear();
       if (socket) {
         socket.onopen = null;
         socket.onmessage = null;
@@ -175,8 +250,20 @@ export function TelemetryProvider({ children }: { children: ReactNode }) {
   }, [queryClient]);
 
   const value = useMemo(
-    () => ({ connectionState, receivedEvents, liveEventIds }),
-    [connectionState, receivedEvents, liveEventIds],
+    () => ({
+      connectionState,
+      receivedEvents,
+      liveEventIds,
+      receivedAlerts,
+      liveAlertIds,
+    }),
+    [
+      connectionState,
+      receivedEvents,
+      liveEventIds,
+      receivedAlerts,
+      liveAlertIds,
+    ],
   );
   return (
     <TelemetryContext.Provider value={value}>

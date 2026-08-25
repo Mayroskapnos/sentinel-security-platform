@@ -1,143 +1,119 @@
 # SENTINEL Architecture
 
-This document describes the implemented Milestone 2 architecture. Detection, correlation, attack simulation, and lab services are not operational components.
+This document describes the implemented Milestone 3 architecture. Incident correlation, attack simulation, active response, and corporate lab services are not operational components.
 
 ## Runtime topology
 
 ```mermaid
 flowchart LR
-    Producer[Synthetic telemetry producer] -->|POST /api/v1/telemetry/events| API[FastAPI routes]
-    API --> Normalizer[Event normalizer]
-    Normalizer --> Service[Security event service]
-    Service --> Repository[SQL repositories]
-    Repository -->|async SQLAlchemy| DB[(PostgreSQL 16)]
-    Service -->|committed event| WS[WebSocket manager]
-    WS -->|/api/v1/ws/events| Proxy[Nginx]
-    Proxy --> Browser[React dashboard]
-    Browser -->|authoritative REST queries| Proxy
-    Proxy -->|HTTP| API
-    Migration[Alembic] --> DB
-    Seeder[Demo seed CLI] --> DB
+    Producer[Telemetry Producer]
+    Ingest[Telemetry API]
+    Events[Security Event Service]
+    DB[(PostgreSQL)]
+    Engine[Detection Engine]
+    Rules[Detection Rules]
+    Alerts[Alert Service]
+    WS[WebSocket Manager]
+    UI[React SOC Dashboard]
 
-    subgraph Docker[SENTINEL management network]
-        Proxy
-        API
-        Service
-        Repository
-        Normalizer
-        WS
-        DB
-        Migration
-        Seeder
-    end
+    Producer --> Ingest
+    Ingest --> Events
+    Events --> DB
+    Events --> WS
+    Events --> Engine
+    Rules --> Engine
+    Engine --> Alerts
+    Alerts --> DB
+    Alerts --> WS
+    WS --> UI
+    DB --> UI
 ```
 
-## REST query flow
+Nginx proxies HTTP and WebSocket traffic. PostgreSQL, FastAPI, and Nginx share the Compose management network and publish only loopback ports.
+
+## Ingestion and detection lifecycle
 
 ```mermaid
 sequenceDiagram
-    participant UI as React + TanStack Query
-    participant Route as FastAPI route
-    participant Service as Domain service
-    participant Repo as Repository
-    participant DB as PostgreSQL
-    UI->>Route: GET /api/v1/events?severity=medium&page=1
-    Route->>Service: Validated filter model
-    Service->>Repo: Bounded query request
-    Repo->>DB: COUNT + filtered LIMIT/OFFSET query
-    DB-->>Repo: Rows and total
-    Repo-->>Service: ORM entities
-    Service-->>Route: Page[SecurityEventResponse]
-    Route-->>UI: Typed JSON response
-```
-
-Routes handle transport concerns, services enforce application behavior, and repositories own SQL construction.
-
-## Live telemetry flow
-
-```mermaid
-sequenceDiagram
-    participant Producer as Telemetry producer
-    participant Route as Telemetry route
-    participant Service as SecurityEventService
+    participant Source as Supported event source
+    participant Ingest as EventIngestionService
     participant DB as PostgreSQL
     participant WS as WebSocketManager
+    participant Engine as DetectionEngine
     participant UI as React + TanStack Query
-    Producer->>Route: POST validated normalized telemetry
-    Route->>Service: canonical SecurityEventCreate
-    Service->>Service: normalize and resolve asset
-    Service->>DB: event + monotonic asset last_seen
-    DB-->>Service: commit with persistent UUID
-    Service-->>WS: typed security_event envelope
-    WS-->>UI: committed SecurityEventResponse
-    Service-->>Route: 201 Created
+    Source->>Ingest: validated SecurityEventCreate
+    Ingest->>Ingest: normalize and resolve asset
+    Ingest->>DB: insert event + monotonic last_seen
+    DB-->>Ingest: commit persistent event UUID
+    Ingest->>WS: security_event
+    Ingest->>Engine: evaluate committed event once
+    Engine->>DB: query enabled candidates and bounded windows
+    Engine->>DB: commit new or suppressed alert + evidence
+    Engine-->>WS: alert_created or alert_updated
+    WS-->>UI: typed version 1 envelopes
 ```
 
-Broadcast happens only after a successful commit. A socket failure is isolated after persistence and never rolls back the event. With no connected clients, ingestion continues normally.
+Both `POST /events` and `POST /telemetry/events` enter this boundary. GET requests, REST recovery, and WebSocket reconnects never evaluate an event. Detection runs after event commit, so a broken rule cannot invalidate accepted telemetry. Per-rule failures are logged with rule and event IDs while remaining candidates continue.
 
 ## Data model
 
 ```mermaid
 erDiagram
     ASSET ||--o{ SECURITY_EVENT : "resolves activity for"
-    ASSET {
+    ASSET ||--o{ ALERT : "is affected by"
+    DETECTION_RULE ||--o{ ALERT : "creates"
+    ALERT ||--o{ ALERT_EVENT : "contains evidence"
+    SECURITY_EVENT ||--o{ ALERT_EVENT : "supports"
+
+    DETECTION_RULE {
         uuid id PK
-        string hostname UK
-        string ip_address UK
-        string asset_type
-        string status
-        float risk_score
-        jsonb metadata
-        timestamptz first_seen
-        timestamptz last_seen
+        string rule_id UK
+        string rule_type
+        string severity
+        boolean enabled
+        string event_type
+        jsonb configuration
     }
-    SECURITY_EVENT {
+    ALERT {
         uuid id PK
         timestamptz timestamp
-        string event_type
-        string source
         string severity
+        string status
+        uuid detection_rule_id FK
         uuid asset_id FK
-        jsonb raw_event
-        jsonb normalized_data
+        float risk_score
+        jsonb evidence
+    }
+    ALERT_EVENT {
+        uuid alert_id PK_FK
+        uuid event_id PK_FK
     }
 ```
 
-Security events may remain unresolved. Deleting an asset sets its event foreign keys to null rather than deleting historical evidence.
+Evidence is a relational association, not an array of UUID strings. Alert detail returns compact evidence rows; original event bodies remain unchanged and are available through the event API. Asset deletion leaves historical events and alerts intact by setting optional asset foreign keys to null. Rules with alert history cannot be deleted.
 
-## Normalization and asset resolution
+## Rule state and execution
 
-Real collectors are deliberately absent. `EventNormalizer` validates the canonical schema, normalizes categorical strings and hostnames, and converts timestamps to UTC. The synthetic producer exercises this contract without pretending to be a collector. Future source adapters should transform their source-specific input into `SecurityEventCreate` instead of manipulating ORM entities.
+Bundled YAML under `backend/app/detection_rules` is parsed with `yaml.safe_load`, validated by Pydantic, and synchronized after migrations. Definition content is repository-controlled; the database stores current content and analyst enable state. Synchronization preserves an existing enable/disable choice. Evaluation reads enabled candidates directly from PostgreSQL, so toggles need no cache invalidation.
 
-Asset resolution is deterministic:
+Threshold and sequence window counts run in SQL using event timestamps and exact match/group fields. Evidence retrieval is bounded after the count qualifies. The current event closes the window: `[event timestamp - timeframe, event timestamp]`. A late event can therefore correlate with earlier event-time records, but Milestone 3 does not replay later-timestamp records that were already ingested.
 
-1. Explicit valid asset ID
-2. Exact normalized hostname
-3. A single match across relevant destination and source IP addresses
+The single-process engine serializes alert creation to avoid local threshold races. Suppression uses rule ID plus configured group values. Matching activity inside the cooldown updates one active alert and attaches new evidence; a fresh qualifying window after cooldown may create another alert. A horizontally scaled backend would require database or distributed coordination.
 
-Conflicting IP matches remain unresolved. Unknown telemetry never auto-creates assets. When an asset resolves, `last_seen` advances in the same transaction only when the incoming event is newer. Risk scores are unchanged.
+## Query and browser cache behavior
 
-## Query and cache behavior
-
-- Assets and events use bounded page sizes with a maximum of 100 rows.
-- Filtering, ordering, counts, and pagination occur in SQL.
-- Events are ordered by timestamp descending with ID as a stable tiebreaker.
-- Dashboard summary and activity data use dedicated database aggregation queries.
-- TanStack Query remains the authoritative browser cache for REST data.
-- The application maintains one typed WebSocket connection.
-- Compatible newest-page event lists update directly and deduplicate by persistent ID.
-- Historical pages and time ranges show a new-event notice instead of changing pagination.
-- Dashboard and asset detail invalidations are debounced.
-- A successful socket reconnection invalidates REST queries to recover missed events from PostgreSQL.
+- Assets, events, alerts, and rules use bounded server-side filtering and pagination.
+- Alerts and events order by event time descending with ID tiebreakers.
+- The browser maintains one versioned WebSocket connection.
+- Compatible page-one lists merge live events and alerts by persistent ID.
+- Historical pages and time ranges are not silently reordered.
+- Alert updates remove rows that no longer satisfy cached filters.
+- Dashboard and asset-detail invalidations are debounced.
+- Reconnection invalidates authoritative REST data to repair missed messages.
+- Raw JSON and rule configuration render as escaped React text, never injected HTML.
 
 ## Persistence lifecycle
 
-The backend runs `alembic upgrade head` before Uvicorn starts. Alembic is the schema mechanism; application startup never invokes `Base.metadata.create_all()`. The demo seed uses deterministic UUIDs.
+The backend container runs `alembic upgrade head`, then `python -m app.cli.sync_rules`, then Uvicorn. Alembic is the schema mechanism; application startup never calls `create_all`. Seeding creates assets and historical events only. Demonstration alerts are generated by passing synthetic events through the real ingestion and detection path.
 
-The telemetry transaction contains both the event insert and any monotonic asset `last_seen` update. The committed ORM object is serialized before WebSocket delivery, so clients receive the real UUID and can immediately retrieve the event through REST.
-
-## Proxy and isolation
-
-PostgreSQL, FastAPI, and Nginx share only the management network and publish ports exclusively on loopback. Nginx upgrades only the WebSocket route and preserves the existing HTTP proxy. FastAPI checks browser origins against an explicit development allow-list.
-
-The connection manager is intentionally process-local because Compose runs one backend instance. Multi-instance deployments require shared pub/sub for cross-instance delivery. Milestone 2 does not add Redis, Kafka, RabbitMQ, or any other broker.
+The WebSocket manager is process-local because Compose runs one backend instance. Multi-instance delivery requires shared pub/sub, and concurrent multi-instance suppression requires stronger database coordination. These are documented limits rather than hidden production claims.

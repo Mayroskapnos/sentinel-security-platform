@@ -3,8 +3,9 @@ from datetime import UTC, datetime, timedelta
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.alert import Alert
 from app.models.asset import Asset
-from app.models.enums import AssetStatus
+from app.models.enums import AlertStatus, AssetStatus
 from app.models.security_event import SecurityEvent
 
 
@@ -38,12 +39,36 @@ class DashboardRepository:
                 )
             )
         ).one()
+        alert_row = (
+            await self.session.execute(
+                select(
+                    func.count(Alert.id)
+                    .filter(Alert.status.in_([AlertStatus.NEW, AlertStatus.INVESTIGATING]))
+                    .label("open_alerts"),
+                    func.count(Alert.id)
+                    .filter(
+                        Alert.status.in_([AlertStatus.NEW, AlertStatus.INVESTIGATING]),
+                        Alert.severity == "critical",
+                    )
+                    .label("critical_alerts"),
+                    func.count(Alert.id)
+                    .filter(
+                        Alert.status.in_([AlertStatus.NEW, AlertStatus.INVESTIGATING]),
+                        Alert.severity == "high",
+                    )
+                    .label("high_alerts"),
+                )
+            )
+        ).one()
         return {
             "total_assets": int(row.total_assets),
             "online_assets": int(row.online_assets),
             "high_risk_assets": int(row.high_risk_assets),
             "events_today": int(event_row.events_today),
             "events_last_hour": int(event_row.events_last_hour),
+            "open_alerts": int(alert_row.open_alerts),
+            "critical_alerts": int(alert_row.critical_alerts),
+            "high_alerts": int(alert_row.high_alerts),
         }
 
     async def activity(self, start: datetime, end: datetime) -> dict[str, list[dict]]:

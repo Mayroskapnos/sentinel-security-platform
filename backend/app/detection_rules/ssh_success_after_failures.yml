@@ -1,0 +1,23 @@
+id: DET-SSH-002
+name: Successful Login Following Repeated Failures
+description: A successful SSH login following at least five failures for the same source, destination, and user within five minutes.
+type: sequence
+severity: high
+enabled: true
+match:
+  event_type: authentication
+  action: ssh_login
+  status: success
+group_by: [source_ip, destination_ip, username]
+sequence:
+  preceding:
+    event_type: authentication
+    action: ssh_login
+    status: failed
+  count: 5
+  timeframe_seconds: 300
+suppression_seconds: 300
+mitre:
+  tactic: Defense Evasion
+  technique_id: T1078
+  technique_name: Valid Accounts

@@ -66,6 +66,7 @@ jobs:
       - run: npm test
       - run: npm run format:check
       - run: npm run build
+      - run: npm audit --audit-level=high
 
   compose:
     name: Compose configuration

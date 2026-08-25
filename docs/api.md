@@ -80,13 +80,13 @@ Returns normalized fields, optional resolved asset reference, normalized data, a
 
 ### `POST /api/v1/events`
 
-Creates one stored normalized event through the canonical event service. Ports are constrained to 0-65535, IPs are validated, and timestamps must include timezone information. This remains the stored-resource API; machine producers should use the telemetry boundary.
+Creates one normalized event through the shared ingestion boundary. Ports are constrained to 0-65535, IPs are validated, and timestamps must include timezone information. After commit it is broadcast and evaluated exactly once. Machine producers should normally use the telemetry boundary.
 
 ## Live telemetry
 
 ### `POST /api/v1/telemetry/events`
 
-Validates, normalizes, resolves, persists, and then broadcasts one machine-generated event. The response is the committed `SecurityEventResponse`, including its database UUID, with `201 Created`.
+Validates, normalizes, resolves, persists, broadcasts, and then evaluates one machine-generated event. The response is the committed `SecurityEventResponse`, including its database UUID, with `201 Created`. A rule failure is isolated and cannot roll back that event.
 
 ```json
 {
@@ -149,13 +149,41 @@ Committed events use:
 }
 ```
 
-`data` contains the complete `SecurityEventResponse`; the shortened example highlights its identifying fields. Messages are versioned, browser origins are allow-listed, and disconnected clients are removed independently. The socket does not replay missed messages; clients refetch REST data after reconnecting.
+`data` contains the complete `SecurityEventResponse`; the shortened example highlights its identifying fields. Committed alerts use the same versioned envelope with `type: alert_created` or `type: alert_updated` and a complete `AlertResponse`. Messages are versioned, browser origins are allow-listed, and disconnected clients are removed independently. The socket does not replay missed messages; clients refetch REST data after reconnecting.
+
+## Alerts
+
+### `GET /api/v1/alerts`
+
+Returns newest-first alert pages. Filters are `severity`, `status`, external `rule_id`, `asset_id`, `source_ip`, `destination_ip`, `username`, `active_only`, `start_time`, `end_time`, `page`, and `page_size` (maximum 100).
+
+### `GET /api/v1/alerts/{alert_id}`
+
+Returns alert context, rule and asset references, ATT&CK mapping, priority score, explainable evidence metadata, and compact supporting SecurityEvents. Raw and normalized payload bodies remain available through each event's API rather than being duplicated in the alert response.
+
+### `PATCH /api/v1/alerts/{alert_id}`
+
+Accepts `{"status": "investigating"}`, `resolved`, or `false_positive` subject to validated transitions. Resolved and false-positive alerts stop contributing to asset risk. Reopening uses `investigating`.
+
+## Detection rules
+
+### `GET /api/v1/rules`
+
+Returns synchronized rules with filters for `enabled`, `rule_type`, `severity`, `event_type`, `search`, and pagination.
+
+### `GET /api/v1/rules/{rule_id}`
+
+The path ID is the rule's database UUID. The response also carries the stable external identifier such as `DET-SSH-001`.
+
+### `PATCH /api/v1/rules/{rule_id}`
+
+Accepts only a strict boolean `enabled` field. Changes are read directly during future event evaluation; existing alerts are retained.
 
 ## Dashboard
 
 ### `GET /api/v1/dashboard/summary`
 
-Returns total assets, online assets, high-risk assets, events today, and events in the last hour.
+Returns total assets, online assets, high-risk assets, events today, events in the last hour, and active open/critical/high alert counts.
 
 ### `GET /api/v1/dashboard/activity`
 
@@ -163,4 +191,4 @@ Accepts `hours` from 1 through 168 (default 72) and returns hourly counts, sever
 
 ## Deployment warning
 
-No alert, detection, or incident endpoints are implemented in Milestone 2. The local telemetry endpoint has no collector authentication and must not be exposed publicly. Production use requires authenticated collectors, TLS, durable queuing, retention controls, and cross-instance pub/sub.
+Incident correlation and active response are not implemented. The local telemetry endpoint has no collector authentication and must not be exposed publicly. Production use requires authenticated collectors, TLS, durable queuing, retention controls, and cross-instance pub/sub.

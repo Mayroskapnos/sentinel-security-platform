@@ -1,4 +1,12 @@
-import { Activity, Boxes, Clock3, Radio, ShieldAlert } from "lucide-react";
+import {
+  Activity,
+  BellRing,
+  Boxes,
+  Clock3,
+  Flame,
+  Radio,
+  ShieldAlert,
+} from "lucide-react";
 import { Link } from "react-router-dom";
 import {
   Area,
@@ -68,7 +76,25 @@ export function OverviewPage() {
         title="Security Operations Overview"
       />
 
-      <section className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+      <section className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <MetricCard
+          detail="New or under investigation"
+          icon={BellRing}
+          label="Open alerts"
+          value={summary.data.open_alerts}
+        />
+        <MetricCard
+          detail="Open critical-priority detections"
+          icon={ShieldAlert}
+          label="Critical alerts"
+          value={summary.data.critical_alerts}
+        />
+        <MetricCard
+          detail="Open high-priority detections"
+          icon={Flame}
+          label="High alerts"
+          value={summary.data.high_alerts}
+        />
         <MetricCard
           detail="Registered lab inventory"
           icon={Boxes}

@@ -41,3 +41,6 @@ class SecurityEvent(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     asset: Mapped["Asset | None"] = relationship(back_populates="events")  # noqa: F821
+    alerts: Mapped[list["Alert"]] = relationship(  # noqa: F821
+        secondary="alert_events", back_populates="evidence_events"
+    )

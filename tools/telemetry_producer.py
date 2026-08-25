@@ -1,4 +1,4 @@
-"""Generate safe synthetic development telemetry for SENTINEL Milestone 2."""
+"""Generate safe synthetic development telemetry for SENTINEL."""
 
 from __future__ import annotations
 
@@ -149,7 +149,7 @@ class TelemetryClient:
                     raise RuntimeError(f"ingestion returned HTTP {response.status}: {detail}")
                 parsed: Any = json.loads(response_body)
                 if not isinstance(parsed, dict) or not isinstance(parsed.get("id"), str):
-                    raise RuntimeError("ingestion response did not contain a database event ID")
+                    raise TypeError("ingestion response did not contain a database event ID")
                 return parsed
             except (ConnectionError, http.client.HTTPException):
                 self.close()
@@ -172,6 +172,33 @@ def generated_events() -> Iterator[dict[str, Any]]:
         yield event
 
 
+def detection_demo_events(source_ip: str) -> Iterator[dict[str, Any]]:
+    """Yield synthetic failed SSH records; this performs no network authentication."""
+    for attempt in range(1, 11):
+        yield {
+            "timestamp": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
+            "event_type": "authentication",
+            "source": "detection_demo",
+            "source_ip": source_ip,
+            "destination_ip": "10.10.20.10",
+            "source_port": 45_000 + attempt,
+            "destination_port": 22,
+            "hostname": "employee-01",
+            "username": "detection-demo",
+            "process_name": "sshd",
+            "action": "ssh_login",
+            "status": "failed",
+            "severity": "medium",
+            "normalized_data": {
+                "authentication_method": "password",
+                "service": "ssh",
+                "synthetic": True,
+                "attempt": attempt,
+            },
+            "raw_event": {"message": f"Synthetic failed SSH authentication attempt {attempt}"},
+        }
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Send safe synthetic development telemetry to SENTINEL."
@@ -181,11 +208,18 @@ def parse_args() -> argparse.Namespace:
         default=os.getenv("SENTINEL_URL", "http://localhost:8000"),
         help="Explicit SENTINEL base URL (default: %(default)s)",
     )
-    parser.add_argument("--mode", choices=("single", "stream", "burst"), default="single")
+    parser.add_argument(
+        "--mode", choices=("single", "stream", "burst", "detection-demo"), default="single"
+    )
     parser.add_argument("--count", type=int, help="Number of events (stream: 25, burst: 100)")
     parser.add_argument("--interval", type=float, help="Seconds between stream events (default: 2)")
+    parser.add_argument(
+        "--demo-source-ip",
+        default="10.10.50.250",
+        help="Source IP grouped by the synthetic SSH detection demo",
+    )
     args = parser.parse_args()
-    default_count = {"single": 1, "stream": 25, "burst": 100}[args.mode]
+    default_count = {"single": 1, "stream": 25, "burst": 100, "detection-demo": 10}[args.mode]
     args.count = default_count if args.count is None else args.count
     args.interval = (
         (2.0 if args.mode == "stream" else 0.02) if args.interval is None else args.interval
@@ -196,6 +230,9 @@ def parse_args() -> argparse.Namespace:
         parser.error("--interval must be zero or greater")
     if args.mode == "single":
         args.count = 1
+    if args.mode == "detection-demo":
+        args.count = 10
+        args.interval = 0.05
     return args
 
 
@@ -208,7 +245,12 @@ def main() -> int:
     print(f"Mode: {args.mode} | Count: {args.count} | Interval: {interval:g}s")
     sent = 0
     try:
-        for event in generated_events():
+        events = (
+            detection_demo_events(args.demo_source_ip)
+            if args.mode == "detection-demo"
+            else generated_events()
+        )
+        for event in events:
             response = client.send(event)
             sent += 1
             print(

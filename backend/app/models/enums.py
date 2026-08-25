@@ -34,5 +34,18 @@ class EventSeverity(StrEnum):
     CRITICAL = "critical"
 
 
+class RuleType(StrEnum):
+    THRESHOLD = "threshold"
+    SEQUENCE = "sequence"
+    SINGLE_EVENT = "single_event"
+
+
+class AlertStatus(StrEnum):
+    NEW = "new"
+    INVESTIGATING = "investigating"
+    RESOLVED = "resolved"
+    FALSE_POSITIVE = "false_positive"
+
+
 def enum_values(enum_class: type[StrEnum]) -> list[str]:
     return [member.value for member in enum_class]

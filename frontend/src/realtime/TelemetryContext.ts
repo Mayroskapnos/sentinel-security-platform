@@ -1,12 +1,14 @@
 import { createContext, useContext } from "react";
 
-import type { SecurityEvent } from "../types/core";
+import type { Alert, SecurityEvent } from "../types/core";
 import type { TelemetryConnectionState } from "./telemetry";
 
 export interface TelemetryContextValue {
   connectionState: TelemetryConnectionState;
   receivedEvents: readonly SecurityEvent[];
   liveEventIds: ReadonlySet<string>;
+  receivedAlerts: readonly Alert[];
+  liveAlertIds: ReadonlySet<string>;
 }
 
 export const TelemetryContext = createContext<TelemetryContextValue | null>(

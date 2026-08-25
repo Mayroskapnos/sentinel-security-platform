@@ -52,3 +52,6 @@ class Asset(Base):
     events: Mapped[list["SecurityEvent"]] = relationship(  # noqa: F821
         back_populates="asset", passive_deletes=True
     )
+    alerts: Mapped[list["Alert"]] = relationship(  # noqa: F821
+        back_populates="asset", passive_deletes=True
+    )

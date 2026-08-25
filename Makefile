@@ -1,4 +1,4 @@
-.PHONY: setup dev up down logs test lint build config migrate seed demo reset telemetry telemetry-burst clean
+.PHONY: setup dev up down logs test lint build config migrate rules seed demo reset telemetry telemetry-burst detection-demo clean
 
 setup:
 	@test -f .env || cp .env.example .env
@@ -34,6 +34,9 @@ config:
 migrate:
 	docker compose exec -T backend alembic upgrade head
 
+rules:
+	docker compose exec -T backend python -m app.cli.sync_rules
+
 seed:
 	docker compose exec -T backend python -m app.cli.seed
 
@@ -47,6 +50,9 @@ telemetry:
 
 telemetry-burst:
 	python tools/telemetry_producer.py --mode burst --count 100
+
+detection-demo:
+	python tools/telemetry_producer.py --mode detection-demo
 
 clean:
 	docker compose down --remove-orphans

@@ -1,5 +1,6 @@
 import {
   ArrowLeft,
+  BellRing,
   Box,
   Clock3,
   Fingerprint,
@@ -10,6 +11,7 @@ import { Link, useParams } from "react-router-dom";
 
 import {
   AssetStatusBadge,
+  AlertStatusBadge,
   EventStatusBadge,
   SeverityBadge,
 } from "../components/data/Badge";
@@ -19,7 +21,7 @@ import {
   LoadingState,
 } from "../components/data/QueryState";
 import { RiskIndicator } from "../components/data/RiskIndicator";
-import { useAsset, useEvents } from "../hooks/useCoreData";
+import { useAlerts, useAsset, useEvents } from "../hooks/useCoreData";
 import { endpoint, formatDateTime, humanize } from "../lib/format";
 
 function Detail({ label, value }: { label: string; value: string }) {
@@ -37,6 +39,13 @@ export function AssetDetailPage() {
   const { assetId } = useParams();
   const asset = useAsset(assetId);
   const events = useEvents({ asset_id: assetId, page: 1, page_size: 10 });
+  const alerts = useAlerts({ asset_id: assetId, page: 1, page_size: 5 });
+  const activeAlerts = useAlerts({
+    asset_id: assetId,
+    active_only: true,
+    page: 1,
+    page_size: 1,
+  });
 
   if (asset.isLoading) return <LoadingState label="Loading asset profile" />;
   if (asset.isError || !asset.data) return <ErrorState error={asset.error} />;
@@ -144,6 +153,80 @@ export function AssetDetailPage() {
             />
           </dl>
         </article>
+      </section>
+
+      <section className="mt-6 overflow-hidden rounded-xl border border-line bg-panel shadow-panel">
+        <div className="flex items-center justify-between border-b border-line px-5 py-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <BellRing className="size-4 text-accent" />
+              <h2 className="text-sm font-semibold text-slate-100">
+                Active and recent alerts
+              </h2>
+            </div>
+            <p className="mt-1 text-xs text-muted">
+              {activeAlerts.data?.total ?? 0} active alert
+              {activeAlerts.data?.total === 1 ? "" : "s"} currently influence
+              this asset&apos;s experimental risk score
+            </p>
+          </div>
+          <Link
+            className="text-xs text-accent hover:text-emerald-300"
+            to={`/alerts?asset_id=${asset.data.id}`}
+          >
+            View all
+          </Link>
+        </div>
+        {alerts.isLoading ? (
+          <LoadingState label="Loading asset alerts" />
+        ) : alerts.isError ? (
+          <ErrorState error={alerts.error} />
+        ) : !alerts.data?.items.length ? (
+          <EmptyState message="No detection alerts are associated with this asset." />
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[850px] text-left">
+              <thead className="border-b border-line bg-black/10 text-[10px] uppercase tracking-wider text-slate-500">
+                <tr>
+                  <th className="px-4 py-3">Severity</th>
+                  <th className="px-4 py-3">Alert</th>
+                  <th className="px-4 py-3">Source</th>
+                  <th className="px-4 py-3">Timestamp</th>
+                  <th className="px-4 py-3">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-line/70">
+                {alerts.data.items.map((alert) => (
+                  <tr className="hover:bg-white/[0.025]" key={alert.id}>
+                    <td className="px-4 py-3">
+                      <SeverityBadge severity={alert.severity} />
+                    </td>
+                    <td className="px-4 py-3">
+                      <Link
+                        className="text-xs font-medium text-slate-200 hover:text-accent"
+                        to={`/alerts/${alert.id}`}
+                      >
+                        {alert.title}
+                      </Link>
+                      <p className="mt-1 font-mono text-[10px] text-muted">
+                        {alert.detection_rule.rule_id}
+                      </p>
+                    </td>
+                    <td className="px-4 py-3 font-mono text-[11px] text-slate-400">
+                      {alert.source_ip ?? "—"}
+                    </td>
+                    <td className="px-4 py-3 font-mono text-[11px] text-muted">
+                      {formatDateTime(alert.timestamp)}
+                    </td>
+                    <td className="px-4 py-3">
+                      <AlertStatusBadge status={alert.status} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </section>
 
       <section className="mt-6 overflow-hidden rounded-xl border border-line bg-panel shadow-panel">

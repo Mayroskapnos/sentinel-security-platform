@@ -12,6 +12,7 @@ from app.schemas.security_event import (
     SecurityEventResponse,
 )
 from app.services.events import SecurityEventService
+from app.services.ingestion import EventIngestionService
 
 router = APIRouter(prefix="/events", tags=["events"])
 SessionDependency = Annotated[AsyncSession, Depends(get_db_session)]
@@ -39,4 +40,4 @@ async def get_event(event_id: UUID, session: SessionDependency) -> SecurityEvent
 async def create_event(
     payload: SecurityEventCreate, session: SessionDependency
 ) -> SecurityEventResponse:
-    return await SecurityEventService(session).create(payload)
+    return await EventIngestionService(session).ingest(payload)

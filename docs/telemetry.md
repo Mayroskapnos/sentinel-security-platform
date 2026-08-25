@@ -1,6 +1,6 @@
 # Live Telemetry
 
-Milestone 2 transports normalized security observations into SENTINEL and displays them live. It does not decide whether observations form an attack, alert, or incident.
+SENTINEL transports normalized security observations, displays them live, and evaluates them with deterministic Milestone 3 rules. It does not correlate alerts into incidents or take active response actions.
 
 ## Pipeline
 
@@ -10,6 +10,8 @@ flowchart LR
     API[Telemetry ingestion API]
     Normalizer[EventNormalizer]
     Service[SecurityEventService]
+    Engine[DetectionEngine]
+    Alerts[Persistent alerts]
     DB[(PostgreSQL)]
     WS[In-process WebSocket manager]
     Nginx[Nginx proxy]
@@ -20,12 +22,16 @@ flowchart LR
     Normalizer --> Service
     Service --> DB
     Service -->|after commit| WS
+    Service -->|after event commit| Engine
+    Engine --> Alerts
+    Alerts --> DB
+    Alerts -->|after alert commit| WS
     WS --> Nginx
     Nginx --> UI
     DB -->|REST authority| UI
 ```
 
-The canonical `SecurityEvent` remains the only event representation. The telemetry route and stored-resource route share `SecurityEventService`; future source adapters should produce the existing `SecurityEventCreate` contract instead of manipulating ORM entities.
+The canonical `SecurityEvent` remains the only event representation. The telemetry and stored-resource POST routes share `EventIngestionService`; future source adapters should produce the existing `SecurityEventCreate` contract instead of manipulating ORM entities. GETs and WebSocket reconnects never invoke detection.
 
 ## Normalized input
 
@@ -43,7 +49,7 @@ Multiple IP matches are ambiguous and leave the event unresolved. Unknown assets
 
 The transaction commits before serialization and broadcast. The socket therefore carries the persistent UUID and the event is immediately REST-queryable. Zero clients, a disconnected client, or one failed client never prevents storage or affects other clients.
 
-Messages use a version `1` envelope and currently support `security_event` and `telemetry_status`. The manager is in memory and suitable for the single backend process in Compose. Horizontal deployments require shared pub/sub.
+Messages use a version `1` envelope and support `security_event`, `alert_created`, `alert_updated`, and `telemetry_status`. The manager is in memory and suitable for the single backend process in Compose. Horizontal deployments require shared pub/sub and cross-instance suppression coordination.
 
 ## Browser behavior
 
@@ -63,6 +69,8 @@ python tools/telemetry_producer.py --mode burst --count 100
 
 `make telemetry` runs the bounded stream and `make telemetry-burst` sends 100 events. `SENTINEL_URL` or `--target` selects an explicit SENTINEL base URL. The producer reuses its HTTP connection, supports `Ctrl+C`, and generates coherent but entirely synthetic development observations for the seeded hosts.
 
+`make detection-demo` sends ten synthetic failed-SSH observations to exercise `DET-SSH-001`. It does not open an SSH connection or perform an attack. Repeating the same source inside the suppression window updates the existing alert; `--demo-source-ip` selects another grouping value for a fresh demonstration.
+
 ## Production limitations
 
-Milestone 2 intentionally has no collector authentication, TLS deployment, durable event queue, high-volume stream processing, agent management, retention policy, or cross-instance WebSocket distribution. Keep the default services loopback-bound and do not publish telemetry ingestion as an unauthenticated production API.
+The platform intentionally has no collector authentication, TLS deployment, durable event queue, high-volume stream processing, agent management, retention policy, incident correlation, or cross-instance WebSocket distribution. Keep the default services loopback-bound and do not publish telemetry ingestion as an unauthenticated production API.

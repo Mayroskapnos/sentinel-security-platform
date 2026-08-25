@@ -23,6 +23,9 @@ async def test_dashboard_summary_uses_database_counts(client: httpx.AsyncClient)
         "high_risk_assets": 1,
         "events_today": 1,
         "events_last_hour": 1,
+        "open_alerts": 0,
+        "critical_alerts": 0,
+        "high_alerts": 0,
     }
 
 

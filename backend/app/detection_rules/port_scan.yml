@@ -1,0 +1,18 @@
+id: DET-NET-001
+name: Unusual Internal Service Enumeration
+description: Connections from one source to at least ten distinct destination ports within 60 seconds.
+type: threshold
+severity: medium
+enabled: true
+match:
+  event_type: network_connection
+group_by: [source_ip]
+threshold:
+  count: 10
+  timeframe_seconds: 60
+  distinct_field: destination_port
+suppression_seconds: 300
+mitre:
+  tactic: Discovery
+  technique_id: T1046
+  technique_name: Network Service Discovery

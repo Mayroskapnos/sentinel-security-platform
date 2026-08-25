@@ -1,9 +1,14 @@
 import type { HealthResponse } from "../types/health";
 import type {
+  Alert,
+  AlertDetail,
+  AlertFilters,
   Asset,
   AssetFilters,
   DashboardActivity,
   DashboardSummary,
+  DetectionRule,
+  DetectionRuleFilters,
   EventFilters,
   Page,
   SecurityEvent,
@@ -61,7 +66,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 function queryString<T extends object>(parameters: T): string {
   const query = new URLSearchParams();
   Object.entries(
-    parameters as Record<string, string | number | undefined>,
+    parameters as Record<string, string | number | boolean | undefined>,
   ).forEach(([key, value]) => {
     if (value !== undefined && value !== "") {
       query.set(key, String(value));
@@ -89,6 +94,46 @@ export function getEvents(filters: EventFilters): Promise<Page<SecurityEvent>> {
 
 export function getEvent(eventId: string): Promise<SecurityEvent> {
   return request<SecurityEvent>(`/events/${eventId}`);
+}
+
+export function getAlerts(filters: AlertFilters): Promise<Page<Alert>> {
+  return request<Page<Alert>>(`/alerts${queryString(filters)}`);
+}
+
+export function getAlert(alertId: string): Promise<AlertDetail> {
+  return request<AlertDetail>(`/alerts/${alertId}`);
+}
+
+export function updateAlert(
+  alertId: string,
+  status: Alert["status"],
+): Promise<Alert> {
+  return request<Alert>(`/alerts/${alertId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ status }),
+  });
+}
+
+export function getRules(
+  filters: DetectionRuleFilters,
+): Promise<Page<DetectionRule>> {
+  return request<Page<DetectionRule>>(`/rules${queryString(filters)}`);
+}
+
+export function getRule(ruleId: string): Promise<DetectionRule> {
+  return request<DetectionRule>(`/rules/${ruleId}`);
+}
+
+export function updateRule(
+  ruleId: string,
+  enabled: boolean,
+): Promise<DetectionRule> {
+  return request<DetectionRule>(`/rules/${ruleId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ enabled }),
+  });
 }
 
 export function getDashboardSummary(): Promise<DashboardSummary> {
