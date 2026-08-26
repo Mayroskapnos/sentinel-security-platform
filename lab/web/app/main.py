@@ -47,9 +47,7 @@ class LoginRequest(BaseModel):
     password: str = Field(min_length=1, max_length=128)
 
 
-writer = JsonLineWriter(
-    Path(os.getenv("LAB_LOG_PATH", "/var/log/sentinel-lab/events.jsonl"))
-)
+writer = JsonLineWriter(Path(os.getenv("LAB_LOG_PATH", "/var/log/sentinel-lab/events.jsonl")))
 
 
 async def heartbeat() -> None:

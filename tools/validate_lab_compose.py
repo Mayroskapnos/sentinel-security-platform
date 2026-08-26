@@ -38,9 +38,7 @@ def main() -> int:
         "sentinel-simulator",
     )
     for service_name in unexposed:
-        assert not services[service_name].get("ports"), (
-            f"{service_name} must not publish ports"
-        )
+        assert not services[service_name].get("ports"), f"{service_name} must not publish ports"
 
     web_ports = services["sentinel-lab-gateway"].get("ports", [])
     assert len(web_ports) == 1

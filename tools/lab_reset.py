@@ -33,9 +33,7 @@ def main() -> int:
     run("docker", "compose", "rm", "--force", "--stop", *LAB_SERVICES, check=False)
     for volume in LAB_VOLUMES:
         run("docker", "volume", "rm", volume, check=False)
-    print(
-        "Corporate lab containers, logs, database, and collector checkpoints were reset."
-    )
+    print("Corporate lab containers, logs, database, and collector checkpoints were reset.")
     print("SENTINEL platform history and sentinel_postgres_data were not removed.")
     return 0
 

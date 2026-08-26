@@ -53,9 +53,7 @@ async def validate(base_url: str, collector_key: str) -> dict[str, Any]:
                 update = message.get("data")
                 break
     if first_connection != "telemetry_status" or message_types[0] != "telemetry_status":
-        raise RuntimeError(
-            "WebSocket status was not delivered on connect and reconnect"
-        )
+        raise RuntimeError("WebSocket status was not delivered on connect and reconnect")
     if not isinstance(update, dict):
         raise TypeError("No network_connection_updated message was received")
     return {
@@ -71,16 +69,10 @@ def main() -> None:
     parser.add_argument("--url", default="http://127.0.0.1:8000")
     parser.add_argument(
         "--collector-key",
-        default=os.getenv(
-            "COLLECTOR_API_KEY", "sentinel_local_collector_key_change_me"
-        ),
+        default=os.getenv("COLLECTOR_API_KEY", "sentinel_local_collector_key_change_me"),
     )
     arguments = parser.parse_args()
-    print(
-        json.dumps(
-            asyncio.run(validate(arguments.url, arguments.collector_key)), indent=2
-        )
-    )
+    print(json.dumps(asyncio.run(validate(arguments.url, arguments.collector_key)), indent=2))
 
 
 if __name__ == "__main__":

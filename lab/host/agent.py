@@ -44,9 +44,7 @@ class JsonLineWriter:
         self.handler.close()
 
 
-writer = JsonLineWriter(
-    Path(os.getenv("LAB_LOG_PATH", "/var/log/sentinel-lab/events.jsonl"))
-)
+writer = JsonLineWriter(Path(os.getenv("LAB_LOG_PATH", "/var/log/sentinel-lab/events.jsonl")))
 
 
 def role_user() -> str:
@@ -70,9 +68,7 @@ def configure_accounts() -> None:
     subprocess.run(["ssh-keygen", "-A"], check=True, capture_output=True)
     if os.environ["LAB_HOSTNAME"] == "admin-server":
         sudoers = Path("/etc/sudoers.d/sentinel-lab")
-        sudoers.write_text(
-            "admin-demo ALL=(root) NOPASSWD: /usr/bin/id\n", encoding="utf-8"
-        )
+        sudoers.write_text("admin-demo ALL=(root) NOPASSWD: /usr/bin/id\n", encoding="utf-8")
         sudoers.chmod(0o440)
 
 
@@ -152,7 +148,9 @@ def web_login() -> int:
 def database_activity(attribution: dict[str, str] | None = None) -> int:
     application_name = "employee-explicit-test"
     if attribution:
-        application_name = f"sentinel-sim:{attribution['scenario_run_id']}:{attribution['scenario_id']}"
+        scenario_run_id = attribution["scenario_run_id"]
+        scenario_id = attribution["scenario_id"]
+        application_name = f"sentinel-sim:{scenario_run_id}:{scenario_id}"
     environment = {
         **os.environ,
         "PGPASSWORD": os.getenv("LAB_DB_PASSWORD", "corporate_lab_db_demo"),
@@ -192,9 +190,7 @@ def database_activity(attribution: dict[str, str] | None = None) -> int:
 
 
 def ssh_activity(success: bool, attribution: dict[str, str] | None = None) -> int:
-    password = (
-        os.getenv("LAB_SSH_PASSWORD", "corporate_lab_ssh_demo") if success else "wrong"
-    )
+    password = os.getenv("LAB_SSH_PASSWORD", "corporate_lab_ssh_demo") if success else "wrong"
     result = run_as_user(
         [
             "/usr/bin/sshpass",
@@ -326,8 +322,7 @@ async def simulation_action(path: str, document: object) -> dict[str, object]:
         if hostname != "employee-01" or count is None:
             raise ValueError("auth-failures is unavailable")
         return_codes = [
-            await asyncio.to_thread(ssh_activity, False, attribution)
-            for _ in range(count)
+            await asyncio.to_thread(ssh_activity, False, attribution) for _ in range(count)
         ]
         return {
             "status": "completed",
@@ -357,9 +352,7 @@ async def simulation_action(path: str, document: object) -> dict[str, object]:
     return {"status": "completed"}
 
 
-async def handle_control(
-    reader: asyncio.StreamReader, writer_stream: asyncio.StreamWriter
-) -> None:
+async def handle_control(reader: asyncio.StreamReader, writer_stream: asyncio.StreamWriter) -> None:
     status_code = 400
     payload: dict[str, object] = {"error": "invalid request"}
     try:
@@ -375,9 +368,7 @@ async def handle_control(
             for key, value in [line.split(":", 1)]
         }
         expected_key = os.environ["SENTINEL_SIMULATION_KEY"]
-        if not compare_digest(
-            headers.get("x-sentinel-simulation-key", ""), expected_key
-        ):
+        if not compare_digest(headers.get("x-sentinel-simulation-key", ""), expected_key):
             status_code, payload = 401, {"error": "authentication failed"}
         elif method == "GET" and path == "/internal/simulation/health":
             status_code, payload = (
@@ -441,9 +432,7 @@ async def background_activity() -> None:
         elif hostname == "employee-02":
             await asyncio.to_thread(web_activity, "/health")
         else:
-            result = await asyncio.to_thread(
-                run_as_user, ["/usr/bin/ps", "-eo", "pid,comm"]
-            )
+            result = await asyncio.to_thread(run_as_user, ["/usr/bin/ps", "-eo", "pid,comm"])
             log_process("/usr/bin/ps", result.returncode, "administration")
         cycle += 1
         await asyncio.sleep(interval)
@@ -492,9 +481,7 @@ def run_activity(name: str) -> int:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="SENTINEL corporate lab host agent")
-    parser.add_argument(
-        "command", nargs="?", default="serve", choices=["serve", "activity"]
-    )
+    parser.add_argument("command", nargs="?", default="serve", choices=["serve", "activity"])
     parser.add_argument("activity", nargs="?")
     args = parser.parse_args()
     if args.command == "activity":

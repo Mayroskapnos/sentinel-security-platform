@@ -22,9 +22,7 @@ def get_json(url: str) -> dict[str, Any]:
 
 
 def post_json(url: str) -> dict[str, Any]:
-    request = Request(
-        url, data=b"", method="POST", headers={"Accept": "application/json"}
-    )
+    request = Request(url, data=b"", method="POST", headers={"Accept": "application/json"})
     with urlopen(request, timeout=10) as response:
         document: Any = json.load(response)
     if not isinstance(document, dict):
@@ -76,14 +74,10 @@ def wait_for_event(
             if isinstance(event, dict):
                 return event
         time.sleep(1)
-    raise TimeoutError(
-        f"No {source}/{event_type} event arrived within {timeout} seconds"
-    )
+    raise TimeoutError(f"No {source}/{event_type} event arrived within {timeout} seconds")
 
 
-def wait_for_scenario_run(
-    base_url: str, run_id: str, timeout: int = 60
-) -> dict[str, Any]:
+def wait_for_scenario_run(base_url: str, run_id: str, timeout: int = 60) -> dict[str, Any]:
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         run = get_json(f"{base_url}/api/v1/simulator/runs/{run_id}")
@@ -94,9 +88,7 @@ def wait_for_scenario_run(
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(
-        description="Validate the safe corporate lab telemetry path"
-    )
+    parser = argparse.ArgumentParser(description="Validate the safe corporate lab telemetry path")
     parser.add_argument("--sentinel-url", default="http://127.0.0.1:8000")
     parser.add_argument("--lab-web-url", default="http://127.0.0.1:8081")
     args = parser.parse_args()
@@ -132,9 +124,7 @@ def main() -> int:
         raise TypeError("SCN-004 did not return a persistent run ID")
     scenario_run = wait_for_scenario_run(sentinel_url, run_id)
     if scenario_run.get("status") != "completed":
-        raise RuntimeError(
-            f"SCN-004 did not complete: {scenario_run.get('error_message')}"
-        )
+        raise RuntimeError(f"SCN-004 did not complete: {scenario_run.get('error_message')}")
 
     database_event = wait_for_event(
         sentinel_url,
@@ -160,11 +150,7 @@ def main() -> int:
     if not detection or detection.get("observed") is not True:
         raise RuntimeError("SCN-004 did not attribute an observed DET-DB-001 alert")
     alert_ids = detection.get("alert_ids")
-    if (
-        not isinstance(alert_ids, list)
-        or not alert_ids
-        or not isinstance(alert_ids[0], str)
-    ):
+    if not isinstance(alert_ids, list) or not alert_ids or not isinstance(alert_ids[0], str):
         raise RuntimeError("SCN-004 did not return an attributed alert ID")
     alert = get_json(f"{sentinel_url}/api/v1/alerts/{alert_ids[0]}")
     if alert.get("mitre_technique_id") is not None:
@@ -177,9 +163,7 @@ def main() -> int:
     print(f"scenario_run_id={run_id}")
     print(f"database_event_id={database_event['id']}")
     print(f"database_alert_id={alert['id']}")
-    print(
-        f"lab_assets_online={lab_status.get('active_assets')}/{lab_status.get('total_assets')}"
-    )
+    print(f"lab_assets_online={lab_status.get('active_assets')}/{lab_status.get('total_assets')}")
     return 0
 
 
