@@ -173,6 +173,16 @@ class TopologyScenarioContext(BaseModel):
         return as_utc(value) if value else None
 
 
+class TopologyIncidentContext(BaseModel):
+    id: UUID
+    incident_number: str
+    title: str
+    severity: str
+    status: str
+    event_count: int = Field(ge=0)
+    alert_count: int = Field(ge=0)
+
+
 class TopologySummary(BaseModel):
     asset_count: int = Field(ge=0)
     connection_count: int = Field(ge=0)
@@ -187,6 +197,7 @@ class NetworkTopologyResponse(BaseModel):
     generated_at: datetime
     window: TopologyWindow
     scenario: TopologyScenarioContext | None = None
+    incident: TopologyIncidentContext | None = None
     nodes: list[TopologyNode]
     edges: list[TopologyEdge]
     alerts: list[TopologyAlertReference]

@@ -10,6 +10,10 @@ import type {
   DetectionRule,
   DetectionRuleFilters,
   EventFilters,
+  IncidentDetail,
+  IncidentFilters,
+  IncidentListItem,
+  IncidentStatus,
   LabStatus,
   NetworkTopology,
   Page,
@@ -161,6 +165,27 @@ export function updateAlert(
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ status }),
+  });
+}
+
+export function getIncidents(
+  filters: IncidentFilters,
+): Promise<Page<IncidentListItem>> {
+  return request<Page<IncidentListItem>>(`/incidents${queryString(filters)}`);
+}
+
+export function getIncident(incidentId: string): Promise<IncidentDetail> {
+  return request<IncidentDetail>(`/incidents/${incidentId}`);
+}
+
+export function updateIncident(
+  incidentId: string,
+  changes: { status?: IncidentStatus; assigned_to?: string | null },
+): Promise<IncidentDetail> {
+  return request<IncidentDetail>(`/incidents/${incidentId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(changes),
   });
 }
 

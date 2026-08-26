@@ -51,9 +51,14 @@ Open `/attack-map?run=<scenario-run-uuid>` or follow the link on a Scenario Run 
 
 SCN-005 therefore displays credential activity, observed service-discovery relationships, local privilege activity, and database connection evidence in timestamp order as those records arrive. A completed historical run remains available after the lab goes offline.
 
+## Incident evidence mode
+
+Open `/attack-map?incident=<incident-uuid>` from Incident Detail. The backend selects only SecurityEvents joined through that Incident's Alert evidence, resolves relevant Assets from those events, and uses those observed events to build relationship edges. It returns the exact Incident Alerts and their justified ATT&CK mappings. Incident title, summary, story prose, expected scenario steps, and global topology do not create edges.
+
 ## Deep links and filters
 
 - `run=<uuid>` selects exact scenario mode.
+- `incident=<uuid>` selects exact Incident evidence mode and is mutually exclusive with a run.
 - `asset=<uuid>` selects an existing asset node.
 - `alert=<uuid>` selects an edge supported by that alert's evidence, or its asset node when no relationship evidence exists.
 - `window=5m|15m|1h|24h|all` controls live recency scope.
@@ -71,4 +76,4 @@ The overlay lists mappings only from observed Alerts whose detection rule has co
 - Asset resolution uses the stored primary IP plus explicitly declared lab metadata aliases; NAT, DHCP history, undeclared aliases, and unknown external nodes are not modeled.
 - WebSocket delivery and the aggregation lock are process-local. Multi-instance deployment requires shared pub/sub and database-level aggregation coordination.
 - Browser visual QA requires an available browser runtime; automated rendering, strict typing, and production builds do not replace human visual inspection.
-- Incident correlation and attack-story reconstruction are reserved for Milestone 7.
+- Incident mode reflects bounded Alert evidence; it is not causal proof or a complete packet-level path.

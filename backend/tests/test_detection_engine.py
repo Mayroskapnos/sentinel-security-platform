@@ -6,7 +6,12 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.realtime.manager import websocket_manager
-from app.schemas.realtime import AlertCreatedMessage, AlertUpdatedMessage
+from app.schemas.realtime import (
+    AlertCreatedMessage,
+    AlertUpdatedMessage,
+    IncidentCreatedMessage,
+    IncidentUpdatedMessage,
+)
 from app.services.risk import RiskService
 from app.services.rule_loader import RuleLoader
 from tests.factories import asset_payload, event_payload
@@ -301,7 +306,36 @@ async def test_alert_websocket_messages_use_persistent_alert_id(
     messages = [call.args[0] for call in broadcast.await_args_list]
     created = [message for message in messages if isinstance(message, AlertCreatedMessage)]
     updated = [message for message in messages if isinstance(message, AlertUpdatedMessage)]
+    incident_created = [
+        message for message in messages if isinstance(message, IncidentCreatedMessage)
+    ]
+    incident_updated = [
+        message for message in messages if isinstance(message, IncidentUpdatedMessage)
+    ]
     assert len(created) == 1
     assert len(updated) == 1
+    assert len(incident_created) == 1
+    assert len(incident_updated) == 1
+    authoritative_flow = [
+        message.type
+        for message in messages
+        if isinstance(
+            message,
+            (
+                AlertCreatedMessage,
+                AlertUpdatedMessage,
+                IncidentCreatedMessage,
+                IncidentUpdatedMessage,
+            ),
+        )
+    ]
+    assert authoritative_flow == [
+        "alert_created",
+        "incident_created",
+        "alert_updated",
+        "incident_updated",
+    ]
     persisted = (await client.get("/api/v1/alerts?rule_id=DET-SSH-001")).json()["items"][0]
     assert str(created[0].data.id) == persisted["id"]
+    assert incident_created[0].data.id == incident_updated[0].data.id
+    assert persisted["incident"]["id"] == str(incident_created[0].data.id)

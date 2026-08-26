@@ -83,6 +83,7 @@ function alert(overrides: Partial<Alert> = {}): Alert {
     last_event_at: "2026-08-24T14:22:17Z",
     created_at: "2026-08-24T14:22:17.025Z",
     updated_at: "2026-08-24T14:22:17.025Z",
+    incident: null,
     ...overrides,
   };
 }
@@ -167,6 +168,35 @@ describe("telemetry message parsing", () => {
         update,
       ),
     ).toEqual([update]);
+  });
+
+  it("accepts typed incident messages for authoritative refresh", () => {
+    const parsed = parseTelemetryMessage(
+      JSON.stringify({
+        version: "1",
+        type: "incident_created",
+        timestamp: "2026-08-25T12:10:00Z",
+        data: {
+          id: "3dc90e82-759a-4ef1-b60b-24c4e8dd5685",
+          incident_number: "INC-3DC90E82",
+          title: "Possible Credential Compromise",
+          severity: "high",
+          status: "open",
+          confidence_score: 85,
+          risk_score: 76,
+          first_activity_at: "2026-08-25T12:00:00Z",
+          last_activity_at: "2026-08-25T12:10:00Z",
+          created_at: "2026-08-25T12:00:01Z",
+          updated_at: "2026-08-25T12:10:01Z",
+          alert_count: 2,
+          asset_count: 1,
+          event_count: 11,
+          affected_assets: ["employee-01"],
+          scenario_run_id: null,
+        },
+      }),
+    );
+    expect(parsed?.type).toBe("incident_created");
   });
 });
 

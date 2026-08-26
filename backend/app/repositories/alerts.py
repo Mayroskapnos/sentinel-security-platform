@@ -7,6 +7,7 @@ from sqlalchemy.orm import joinedload, selectinload
 from app.models.alert import Alert
 from app.models.detection_rule import DetectionRule
 from app.models.enums import AlertStatus
+from app.models.incident import IncidentAlert
 from app.schemas.alert import AlertFilters
 
 
@@ -45,7 +46,11 @@ class AlertRepository:
             select(func.count()).select_from(query.order_by(None).subquery())
         )
         alerts = await self.session.scalars(
-            query.options(joinedload(Alert.detection_rule), joinedload(Alert.asset))
+            query.options(
+                joinedload(Alert.detection_rule),
+                joinedload(Alert.asset),
+                selectinload(Alert.incident_link).joinedload(IncidentAlert.incident),
+            )
             .order_by(Alert.timestamp.desc(), Alert.id.desc())
             .offset((filters.page - 1) * filters.page_size)
             .limit(filters.page_size)
@@ -53,7 +58,11 @@ class AlertRepository:
         return list(alerts.unique()), int(total or 0)
 
     async def get(self, alert_id: UUID, *, include_events: bool = False) -> Alert | None:
-        options = [joinedload(Alert.detection_rule), joinedload(Alert.asset)]
+        options = [
+            joinedload(Alert.detection_rule),
+            joinedload(Alert.asset),
+            selectinload(Alert.incident_link).joinedload(IncidentAlert.incident),
+        ]
         if include_events:
             options.append(selectinload(Alert.evidence_events))
         return await self.session.scalar(

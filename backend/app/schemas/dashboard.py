@@ -13,6 +13,8 @@ class DashboardSummary(BaseModel):
     open_alerts: int = Field(ge=0)
     critical_alerts: int = Field(ge=0)
     high_alerts: int = Field(ge=0)
+    open_incidents: int = Field(ge=0)
+    critical_incidents: int = Field(ge=0)
 
 
 class TimeBucket(BaseModel):

@@ -71,7 +71,14 @@ class Alert(Base):
     evidence_events: Mapped[list["SecurityEvent"]] = relationship(  # noqa: F821
         secondary="alert_events", back_populates="alerts", lazy="raise"
     )
+    incident_link: Mapped["IncidentAlert | None"] = relationship(  # noqa: F821
+        back_populates="alert", uselist=False, lazy="raise"
+    )
 
     @property
     def evidence_count(self) -> int:
         return int(self.evidence.get("event_count", 0))
+
+    @property
+    def incident(self):  # noqa: ANN201
+        return self.incident_link.incident if self.incident_link else None

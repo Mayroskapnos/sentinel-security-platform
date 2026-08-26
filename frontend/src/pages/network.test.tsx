@@ -82,6 +82,7 @@ const topology: NetworkTopology = {
     started_at: "2026-08-25T12:00:00Z",
     finished_at: "2026-08-25T12:10:00Z",
   },
+  incident: null,
   nodes: [source, destination],
   edges: [connection],
   alerts: [],

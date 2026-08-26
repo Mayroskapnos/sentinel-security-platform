@@ -34,6 +34,16 @@ const AlertDetailPage = lazy(() =>
     default: module.AlertDetailPage,
   })),
 );
+const IncidentsPage = lazy(() =>
+  import("./pages/IncidentsPage").then((module) => ({
+    default: module.IncidentsPage,
+  })),
+);
+const IncidentDetailPage = lazy(() =>
+  import("./pages/IncidentDetailPage").then((module) => ({
+    default: module.IncidentDetailPage,
+  })),
+);
 const RulesPage = lazy(() =>
   import("./pages/RulesPage").then((module) => ({ default: module.RulesPage })),
 );
@@ -74,6 +84,11 @@ export default function App() {
           <Route element={<EventsPage />} path="/events" />
           <Route element={<AlertsPage />} path="/alerts" />
           <Route element={<AlertDetailPage />} path="/alerts/:alertId" />
+          <Route element={<IncidentsPage />} path="/incidents" />
+          <Route
+            element={<IncidentDetailPage />}
+            path="/incidents/:incidentId"
+          />
           <Route element={<RulesPage />} path="/rules" />
           <Route element={<RuleDetailPage />} path="/rules/:ruleId" />
           <Route element={<SystemPage />} path="/system" />

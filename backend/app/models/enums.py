@@ -47,6 +47,14 @@ class AlertStatus(StrEnum):
     FALSE_POSITIVE = "false_positive"
 
 
+class IncidentStatus(StrEnum):
+    OPEN = "open"
+    INVESTIGATING = "investigating"
+    CONTAINED = "contained"
+    RESOLVED = "resolved"
+    FALSE_POSITIVE = "false_positive"
+
+
 class ScenarioRunStatus(StrEnum):
     PENDING = "pending"
     RUNNING = "running"

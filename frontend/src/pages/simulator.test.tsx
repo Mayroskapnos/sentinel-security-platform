@@ -61,6 +61,7 @@ const activeRun: ScenarioRun = {
   alert_count: 0,
   detections: [],
   alerts: [],
+  incident: null,
 };
 
 describe("Attack Simulator presentation", () => {

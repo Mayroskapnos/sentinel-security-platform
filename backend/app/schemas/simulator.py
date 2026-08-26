@@ -6,6 +6,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 from app.models.enums import ScenarioRunStatus, ScenarioStepStatus
 from app.schemas.common import as_utc
+from app.schemas.incident import IncidentReference
 from app.simulator.registry import LabTargetRegistry
 
 ActionName = Literal[
@@ -177,6 +178,7 @@ class ScenarioRunResponse(BaseModel):
     alert_count: int = 0
     detections: list[DetectionObservation] = Field(default_factory=list)
     alerts: list[ScenarioAlertReference] = Field(default_factory=list)
+    incident: IncidentReference | None = None
 
     @field_validator("started_at", "finished_at", "created_at", "updated_at")
     @classmethod

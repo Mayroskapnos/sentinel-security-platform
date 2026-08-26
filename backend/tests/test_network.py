@@ -112,6 +112,7 @@ async def test_connection_identity_keeps_ports_distinct_and_ignores_unknown_endp
 @pytest.mark.asyncio
 async def test_known_ip_aliases_resolve_and_database_sources_share_one_relationship(
     client: httpx.AsyncClient,
+    session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
     source, destination = await create_assets(client)
     alias = "10.10.20.30"
@@ -120,20 +121,46 @@ async def test_known_ip_aliases_resolve_and_database_sources_share_one_relations
         json={"metadata_json": {"ip_aliases": [alias]}},
     )
     assert updated.status_code == 200
-    for normalized_data in (
-        {"adapter": "database_client", "service": "postgresql"},
-        {"adapter": "postgresql"},
+    now = datetime.now(UTC)
+    async with session_factory() as session:
+        run = ScenarioRun(
+            scenario_id="SCN-005",
+            scenario_name="Enterprise exercise",
+            status="completed",
+            active_slot=None,
+            started_at=now,
+            finished_at=now,
+            current_step=1,
+            total_steps=1,
+            steps=[],
+            expected_detections=["DET-DB-001"],
+            targets=["source-host", "destination-host"],
+            result={},
+        )
+        session.add(run)
+        await session.commit()
+        run_id = run.id
+    for destination_ip, normalized_data, scenario_run_id in (
+        (alias, {"adapter": "database_client", "service": "postgresql"}, None),
+        (
+            destination["ip_address"],
+            {"adapter": "postgresql"},
+            str(run_id),
+        ),
     ):
         response = await client.post(
             "/api/v1/telemetry/events",
             json=event_payload(
+                timestamp=now,
                 hostname="source-host",
                 source_ip=source["ip_address"],
-                destination_ip=alias,
+                destination_ip=destination_ip,
                 destination_port=5432,
                 event_type="database_connection",
                 action="database_connect",
                 normalized_data=normalized_data,
+                scenario_run_id=scenario_run_id,
+                scenario_id="SCN-005" if scenario_run_id else None,
             ),
         )
         assert response.status_code == 201
@@ -141,6 +168,13 @@ async def test_known_ip_aliases_resolve_and_database_sources_share_one_relations
     assert connections["total"] == 1
     assert connections["items"][0]["connection_count"] == 2
     assert connections["items"][0]["connection_type"] == "postgresql"
+
+    topology = await client.get(
+        "/api/v1/network/topology",
+        params={"scenario_run_id": str(run_id), "window": "all"},
+    )
+    assert topology.status_code == 200
+    assert topology.json()["edges"][0]["destination_ip"] == destination["ip_address"]
 
 
 @pytest.mark.asyncio

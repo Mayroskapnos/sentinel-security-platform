@@ -6,6 +6,7 @@ import {
   Flame,
   Radio,
   ShieldAlert,
+  ShieldCheck,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import {
@@ -77,6 +78,18 @@ export function OverviewPage() {
       />
 
       <section className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <MetricCard
+          detail="Open or under investigation"
+          icon={ShieldCheck}
+          label="Open incidents"
+          value={summary.data.open_incidents}
+        />
+        <MetricCard
+          detail="Critical correlated activity"
+          icon={ShieldAlert}
+          label="Critical incidents"
+          value={summary.data.critical_incidents}
+        />
         <MetricCard
           detail="New or under investigation"
           icon={BellRing}

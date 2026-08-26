@@ -7,6 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from app.models.enums import AlertStatus, EventSeverity
 from app.schemas.asset import AssetReference
 from app.schemas.common import as_utc
+from app.schemas.incident import IncidentReference
 
 
 class AlertRuleReference(BaseModel):
@@ -69,6 +70,7 @@ class AlertResponse(BaseModel):
     last_event_at: datetime
     created_at: datetime
     updated_at: datetime
+    incident: IncidentReference | None = None
 
     @field_validator("timestamp", "first_event_at", "last_event_at", "created_at", "updated_at")
     @classmethod

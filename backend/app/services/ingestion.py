@@ -6,10 +6,13 @@ from app.realtime.manager import WebSocketManager, websocket_manager
 from app.schemas.realtime import (
     AlertCreatedMessage,
     AlertUpdatedMessage,
+    IncidentCreatedMessage,
+    IncidentUpdatedMessage,
     NetworkConnectionUpdatedMessage,
     SecurityEventMessage,
 )
 from app.schemas.security_event import SecurityEventCreate, SecurityEventResponse
+from app.services.correlation import CorrelationService
 from app.services.detection import DetectionEngine
 from app.services.events import SecurityEventService
 from app.services.network import NetworkService
@@ -51,4 +54,15 @@ class EventIngestionService:
                 else AlertUpdatedMessage(data=result.alert)
             )
             await self.manager.broadcast(message)
+            try:
+                outcome = await CorrelationService(self.session).process_alert(result.alert.id)
+                incident_message = (
+                    IncidentCreatedMessage(data=outcome.incident)
+                    if outcome.created
+                    else IncidentUpdatedMessage(data=outcome.incident)
+                )
+                await self.manager.broadcast(incident_message)
+            except Exception:
+                await self.session.rollback()
+                logger.exception("incident_correlation_failed alert_id=%s", result.alert.id)
         return event

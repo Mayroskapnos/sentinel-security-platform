@@ -1,6 +1,6 @@
 # SENTINEL Architecture
 
-This document describes the implemented Milestone 6 architecture. Incident correlation, active response, and general offensive workflows are not operational components.
+This document describes the implemented Milestone 7 architecture. AI investigation assistance, active response, and general offensive workflows are not operational components.
 
 ## Runtime topology
 
@@ -21,6 +21,8 @@ flowchart LR
     Engine[Detection Engine]
     Rules[Detection Rules]
     Alerts[Alert Service]
+    Correlation[Correlation Engine]
+    Incidents[Incident and Attack Story]
     Network[Network Aggregator]
     WS[WebSocket Manager]
     UI[React SOC Dashboard]
@@ -45,6 +47,10 @@ flowchart LR
     Engine --> Alerts
     Alerts --> DB
     Alerts --> WS
+    Alerts --> Correlation
+    Correlation --> Incidents
+    Incidents --> DB
+    Incidents --> WS
     WS --> UI
     DB --> UI
 ```
@@ -205,4 +211,8 @@ Network aggregation occurs after the immutable event commit and before detection
 
 Collector source readers persist byte offsets and file fingerprints in `lab_collector_state`. They advance after successful delivery or a rejected malformed record, retry API failures with bounded exponential backoff, and isolate source-reader failures from other sources. See [Corporate Lab](corporate-lab.md) for topology and operational details.
 
-The WebSocket manager is process-local because Compose runs one backend instance. Multi-instance delivery requires shared pub/sub, and concurrent multi-instance suppression requires stronger database coordination. These are documented limits rather than hidden production claims.
+After each authoritative Alert commit and Alert WebSocket message, the Correlation Engine evaluates a bounded set of active Incidents. `IncidentAlert` stores single membership plus the score and signals used for the decision; `IncidentAsset` stores evidence-derived affected Assets. Derived severity, risk, confidence, summary, and story state are recalculated whenever membership or effective Alert status changes. The Incident commit precedes its WebSocket message. See [Incident Correlation](incident-correlation.md).
+
+The incident topology performs an exact AlertEvent join and never constructs relationships from story text. ScenarioRun remains an execution record; Incident remains a security-evidence inference.
+
+The WebSocket manager is process-local because Compose runs one backend instance. Multi-instance delivery requires shared pub/sub, and concurrent multi-instance suppression and correlation require stronger database coordination. These are documented limits rather than hidden production claims.

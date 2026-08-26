@@ -5,6 +5,7 @@ from uuid import UUID
 from pydantic import BaseModel, Field
 
 from app.schemas.alert import AlertResponse
+from app.schemas.incident import IncidentListItem
 from app.schemas.network import NetworkConnectionUpdate
 from app.schemas.security_event import SecurityEventResponse
 
@@ -51,6 +52,20 @@ class NetworkConnectionUpdatedMessage(BaseModel):
     type: Literal["network_connection_updated"] = "network_connection_updated"
     timestamp: datetime = Field(default_factory=utc_now)
     data: NetworkConnectionUpdate
+
+
+class IncidentCreatedMessage(BaseModel):
+    version: Literal["1"] = "1"
+    type: Literal["incident_created"] = "incident_created"
+    timestamp: datetime = Field(default_factory=utc_now)
+    data: IncidentListItem
+
+
+class IncidentUpdatedMessage(BaseModel):
+    version: Literal["1"] = "1"
+    type: Literal["incident_updated"] = "incident_updated"
+    timestamp: datetime = Field(default_factory=utc_now)
+    data: IncidentListItem
 
 
 class SimulationRunData(BaseModel):

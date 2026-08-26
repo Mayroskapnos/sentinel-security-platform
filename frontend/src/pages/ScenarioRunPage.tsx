@@ -223,6 +223,23 @@ export function ScenarioRunPage() {
 
       <section className="mt-6 rounded-xl border border-line bg-panel p-5 shadow-panel">
         <h2 className="text-sm font-semibold text-slate-100">Run context</h2>
+        {run.incident ? (
+          <div className="mt-4 rounded-lg border border-accent/20 bg-accent/[0.04] p-4">
+            <p className="text-[10px] uppercase tracking-wider text-accent">
+              Correlated Incident
+            </p>
+            <Link
+              className="mt-2 inline-block text-sm text-slate-100 hover:text-accent"
+              to={`/incidents/${run.incident.id}`}
+            >
+              {run.incident.incident_number} · {run.incident.title}
+            </Link>
+            <p className="mt-2 text-xs text-muted">
+              The run records the controlled test; the Incident records
+              evidence-based correlation.
+            </p>
+          </div>
+        ) : null}
         <dl className="mt-4 grid gap-4 text-xs sm:grid-cols-2 lg:grid-cols-4">
           <div>
             <dt className="text-muted">Started</dt>

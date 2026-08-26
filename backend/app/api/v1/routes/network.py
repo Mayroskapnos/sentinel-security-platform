@@ -39,12 +39,14 @@ async def get_topology(
     session: SessionDependency,
     window: TopologyWindow = "15m",
     scenario_run_id: UUID | None = None,
+    incident_id: UUID | None = None,
     asset_id: UUID | None = None,
     alert_id: UUID | None = None,
 ) -> NetworkTopologyResponse:
     return await NetworkService(session).topology(
         window=window,
         scenario_run_id=scenario_run_id,
+        incident_id=incident_id,
         asset_id=asset_id,
         alert_id=alert_id,
     )

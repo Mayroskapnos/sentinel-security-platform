@@ -4,6 +4,7 @@ import {
   Database,
   Radio,
   Server,
+  ShieldCheck,
   Wifi,
 } from "lucide-react";
 
@@ -11,7 +12,11 @@ import { AssetStatusBadge, EventStatusBadge } from "../components/data/Badge";
 import { PageHeading } from "../components/data/PageHeading";
 import { ErrorState, LoadingState } from "../components/data/QueryState";
 import { useHealth } from "../hooks/useHealth";
-import { useLabStatus, useSimulatorStatus } from "../hooks/useCoreData";
+import {
+  useDashboardSummary,
+  useLabStatus,
+  useSimulatorStatus,
+} from "../hooks/useCoreData";
 import { formatDateTime, humanize } from "../lib/format";
 import { useTelemetry } from "../realtime/TelemetryContext";
 
@@ -20,17 +25,25 @@ export function SystemPage() {
   const lab = useLabStatus();
   const simulator = useSimulatorStatus();
   const telemetry = useTelemetry();
+  const dashboard = useDashboardSummary();
 
-  if (health.isLoading || lab.isLoading || simulator.isLoading) {
+  if (
+    health.isLoading ||
+    lab.isLoading ||
+    simulator.isLoading ||
+    dashboard.isLoading
+  ) {
     return <LoadingState label="Loading platform and corporate lab status" />;
   }
   if (
     health.isError ||
     lab.isError ||
     simulator.isError ||
+    dashboard.isError ||
     !health.data ||
     !lab.data ||
-    !simulator.data
+    !simulator.data ||
+    !dashboard.data
   ) {
     return <ErrorState error={health.error ?? lab.error ?? simulator.error} />;
   }
@@ -68,6 +81,15 @@ export function SystemPage() {
             : simulator.data.state,
       icon: Crosshair,
     },
+    {
+      label: "Correlation Engine",
+      detail: `${dashboard.data.open_incidents} open incidents`,
+      state:
+        health.data.checks.correlation_engine?.status === "healthy"
+          ? "active"
+          : "unavailable",
+      icon: ShieldCheck,
+    },
   ];
 
   return (
@@ -83,7 +105,7 @@ export function SystemPage() {
         title="System"
       />
 
-      <section className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <section className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
         {platformRows.map(({ detail, icon: Icon, label, state }) => (
           <article
             className="rounded-xl border border-line bg-panel p-5 shadow-panel"

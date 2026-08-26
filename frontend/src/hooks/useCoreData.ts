@@ -15,6 +15,8 @@ import {
   getEvent,
   getEvents,
   getLabStatus,
+  getIncident,
+  getIncidents,
   getNetworkTopology,
   getScenario,
   getScenarioRun,
@@ -24,6 +26,7 @@ import {
   getRule,
   getRules,
   updateAlert,
+  updateIncident,
   updateRule,
   cancelScenarioRun,
   runScenario,
@@ -34,6 +37,8 @@ import type {
   AssetFilters,
   DetectionRuleFilters,
   EventFilters,
+  IncidentFilters,
+  IncidentStatus,
   TopologyParameters,
 } from "../types/core";
 
@@ -55,6 +60,13 @@ export const queryKeys = {
     lists: ["alerts", "list"] as const,
     list: (filters: AlertFilters) => ["alerts", "list", filters] as const,
     detail: (alertId: string) => ["alerts", "detail", alertId] as const,
+  },
+  incidents: {
+    all: ["incidents"] as const,
+    lists: ["incidents", "list"] as const,
+    list: (filters: IncidentFilters) => ["incidents", "list", filters] as const,
+    detail: (incidentId: string) =>
+      ["incidents", "detail", incidentId] as const,
   },
   rules: {
     all: ["rules"] as const,
@@ -152,6 +164,47 @@ export function useUpdateAlert() {
       void queryClient.invalidateQueries({ queryKey: queryKeys.alerts.lists });
       void queryClient.invalidateQueries({ queryKey: queryKeys.assets.all });
       void queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.all });
+    },
+  });
+}
+
+export function useIncidents(filters: IncidentFilters) {
+  return useQuery({
+    queryKey: queryKeys.incidents.list(filters),
+    queryFn: () => getIncidents(filters),
+    placeholderData: keepPreviousData,
+  });
+}
+
+export function useIncident(incidentId: string | undefined) {
+  return useQuery({
+    queryKey: queryKeys.incidents.detail(incidentId ?? ""),
+    queryFn: () => getIncident(incidentId!),
+    enabled: Boolean(incidentId),
+  });
+}
+
+export function useUpdateIncident() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      incidentId,
+      status,
+    }: {
+      incidentId: string;
+      status: IncidentStatus;
+    }) => updateIncident(incidentId, { status }),
+    onSuccess: (incident) => {
+      queryClient.setQueryData(
+        queryKeys.incidents.detail(incident.id),
+        incident,
+      );
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.incidents.lists,
+      });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.all });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.alerts.all });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.assets.all });
     },
   });
 }

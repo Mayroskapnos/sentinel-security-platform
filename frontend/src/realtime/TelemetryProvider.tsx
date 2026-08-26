@@ -239,6 +239,23 @@ export function TelemetryProvider({ children }: { children: ReactNode }) {
           scheduleNetworkRefresh();
         } else if (parsed?.type === "network_connection_updated") {
           scheduleNetworkRefresh();
+        } else if (
+          parsed?.type === "incident_created" ||
+          parsed?.type === "incident_updated"
+        ) {
+          void queryClient.invalidateQueries({
+            queryKey: queryKeys.incidents.all,
+          });
+          void queryClient.invalidateQueries({
+            queryKey: queryKeys.dashboard.all,
+          });
+          void queryClient.invalidateQueries({
+            queryKey: queryKeys.alerts.all,
+          });
+          void queryClient.invalidateQueries({
+            queryKey: queryKeys.assets.all,
+          });
+          scheduleNetworkRefresh();
         } else if (parsed?.type.startsWith("simulation_")) {
           void queryClient.invalidateQueries({
             queryKey: queryKeys.simulator.all,

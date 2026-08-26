@@ -99,7 +99,7 @@ Lab action endpoints listen only inside Docker's internal networks and require `
 - The task registry and WebSocket manager are process-local. Database uniqueness protects one active run, but multi-instance execution ownership is not implemented.
 - Docker isolation is not a security boundary against a user who controls the Docker daemon.
 - Rule suppression may make back-to-back demonstrations observe fewer new alerts.
-- Incident correlation and the Attack Map are deliberately not implemented.
+- ScenarioRun and Incident remain distinct: the run records the controlled test, while a linked Incident records deterministic inferences from observed Alerts only.
 
 ## Development commands
 

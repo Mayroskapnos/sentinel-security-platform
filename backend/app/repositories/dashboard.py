@@ -5,7 +5,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.alert import Alert
 from app.models.asset import Asset
-from app.models.enums import AlertStatus, AssetStatus
+from app.models.enums import AlertStatus, AssetStatus, IncidentStatus
+from app.models.incident import Incident
 from app.models.security_event import SecurityEvent
 
 
@@ -60,6 +61,23 @@ class DashboardRepository:
                 )
             )
         ).one()
+        incident_row = (
+            await self.session.execute(
+                select(
+                    func.count(Incident.id)
+                    .filter(
+                        Incident.status.in_([IncidentStatus.OPEN, IncidentStatus.INVESTIGATING])
+                    )
+                    .label("open_incidents"),
+                    func.count(Incident.id)
+                    .filter(
+                        Incident.status.in_([IncidentStatus.OPEN, IncidentStatus.INVESTIGATING]),
+                        Incident.severity == "critical",
+                    )
+                    .label("critical_incidents"),
+                )
+            )
+        ).one()
         return {
             "total_assets": int(row.total_assets),
             "online_assets": int(row.online_assets),
@@ -69,6 +87,8 @@ class DashboardRepository:
             "open_alerts": int(alert_row.open_alerts),
             "critical_alerts": int(alert_row.critical_alerts),
             "high_alerts": int(alert_row.high_alerts),
+            "open_incidents": int(incident_row.open_incidents),
+            "critical_incidents": int(incident_row.critical_incidents),
         }
 
     async def activity(self, start: datetime, end: datetime) -> dict[str, list[dict]]:

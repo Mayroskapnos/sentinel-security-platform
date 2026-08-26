@@ -10,10 +10,11 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
-from app.core.errors import NotFoundError
+from app.core.errors import AppError, NotFoundError
 from app.models.alert import Alert, AlertEvent
 from app.models.asset import Asset
 from app.models.enums import AlertStatus
+from app.models.incident import Incident, IncidentAlert
 from app.models.network_connection import NetworkConnection
 from app.models.scenario_run import ScenarioRun
 from app.models.security_event import SecurityEvent
@@ -27,6 +28,7 @@ from app.schemas.network import (
     TopologyActivity,
     TopologyAlertReference,
     TopologyEdge,
+    TopologyIncidentContext,
     TopologyNode,
     TopologyScenarioContext,
     TopologySummary,
@@ -261,12 +263,22 @@ class NetworkService:
         self,
         window: TopologyWindow,
         scenario_run_id: UUID | None = None,
+        incident_id: UUID | None = None,
         asset_id: UUID | None = None,
         alert_id: UUID | None = None,
     ) -> NetworkTopologyResponse:
         now = datetime.now(UTC)
         start = self._window_start(window, now)
+        if scenario_run_id and incident_id:
+            raise AppError(
+                "AMBIGUOUS_TOPOLOGY_SCOPE",
+                "Choose either a ScenarioRun or an Incident topology scope, not both.",
+                422,
+            )
         scenario = None
+        incident = None
+        incident_event_ids: list[UUID] = []
+        incident_alert_ids: set[UUID] = set()
         if scenario_run_id:
             run = await self.session.get(ScenarioRun, scenario_run_id)
             if run is None:
@@ -299,6 +311,38 @@ class NetworkService:
                 started_at=run.started_at,
                 finished_at=run.finished_at,
             )
+        if incident_id:
+            incident_model = await self.session.get(Incident, incident_id)
+            if incident_model is None:
+                raise NotFoundError("INCIDENT_NOT_FOUND", "Requested incident does not exist.")
+            incident_alert_ids = set(
+                await self.session.scalars(
+                    select(IncidentAlert.alert_id).where(IncidentAlert.incident_id == incident_id)
+                )
+            )
+            incident_event_ids = list(
+                dict.fromkeys(
+                    await self.session.scalars(
+                        select(AlertEvent.event_id)
+                        .join(
+                            IncidentAlert,
+                            IncidentAlert.alert_id == AlertEvent.alert_id,
+                        )
+                        .where(IncidentAlert.incident_id == incident_id)
+                        .order_by(AlertEvent.event_id)
+                        .limit(MAX_TOPOLOGY_EVENTS + 1)
+                    )
+                )
+            )
+            incident = TopologyIncidentContext(
+                id=incident_model.id,
+                incident_number=incident_model.incident_number,
+                title=incident_model.title,
+                severity=incident_model.severity,
+                status=incident_model.status,
+                event_count=len(incident_event_ids),
+                alert_count=len(incident_alert_ids),
+            )
 
         assets = list(await self.session.scalars(select(Asset).order_by(Asset.hostname)))
         assets_by_ip = self._assets_by_ip(assets)
@@ -309,6 +353,8 @@ class NetworkService:
         )
         if scenario_run_id:
             event_query = event_query.where(SecurityEvent.scenario_run_id == scenario_run_id)
+        elif incident_id:
+            event_query = event_query.where(SecurityEvent.id.in_(incident_event_ids))
         elif start:
             event_query = event_query.where(SecurityEvent.timestamp >= start)
         newest = list(
@@ -373,6 +419,7 @@ class NetworkService:
                     aggregate.last_seen = timestamp
                     aggregate.last_status = event.status
                     aggregate.last_event = event
+                    aggregate.observation = observation
                 if len(aggregate.event_ids) < MAX_EDGE_EVENT_IDS:
                     aggregate.event_ids.append(event.id)
                 if event.scenario_run_id:
@@ -382,7 +429,8 @@ class NetworkService:
             joinedload(NetworkConnection.source_asset),
             joinedload(NetworkConnection.destination_asset),
         )
-        if scenario_run_id:
+        scoped = bool(scenario_run_id or incident_id)
+        if scoped:
             connection_query = connection_query.where(
                 NetworkConnection.relationship_key.in_(aggregates.keys())
             )
@@ -408,6 +456,15 @@ class NetworkService:
                     )
                 ).unique()
             )
+        elif incident_id:
+            display_alerts = list(
+                await self.session.scalars(
+                    select(Alert)
+                    .where(Alert.id.in_(incident_alert_ids))
+                    .options(joinedload(Alert.detection_rule))
+                    .order_by(Alert.timestamp, Alert.id)
+                )
+            )
         else:
             display_alerts = active_alerts
         if alert_id and all(item.id != alert_id for item in display_alerts):
@@ -418,7 +475,8 @@ class NetworkService:
                 display_alerts.append(requested_alert)
 
         node_alert_ids: dict[UUID, set[UUID]] = defaultdict(set)
-        for alert in active_alerts:
+        node_alert_source = display_alerts if scoped else active_alerts
+        for alert in node_alert_source:
             candidate_ids = {alert.asset_id} if alert.asset_id else set()
             for ip in (alert.source_ip, alert.destination_ip):
                 matched = assets_by_ip.get(ip or "")
@@ -446,31 +504,37 @@ class NetworkService:
         edges: list[TopologyEdge] = []
         edge_source = (
             aggregates.keys()
-            if scenario_run_id
+            if scoped
             else (connection.relationship_key for connection in connections)
         )
         for key in sorted(edge_source):
             aggregate = aggregates.get(key)
             connection = connections_by_key.get(key)
-            if scenario_run_id and aggregate is None:
+            if scoped and aggregate is None:
                 continue
             if connection:
                 source_asset_id = connection.source_asset_id
                 destination_asset_id = connection.destination_asset_id
-                source_ip = connection.source_ip
-                destination_ip = connection.destination_ip
+                source_ip = aggregate.observation.source_ip if scoped else connection.source_ip
+                destination_ip = (
+                    aggregate.observation.destination_ip if scoped else connection.destination_ip
+                )
                 source_port = (
-                    aggregate.observation.source_port if aggregate else connection.source_port
+                    aggregate.observation.source_port if scoped else connection.source_port
                 )
-                destination_port = connection.destination_port
-                protocol = connection.protocol
-                connection_type = connection.connection_type
-                first_seen = aggregate.first_seen if scenario_run_id else connection.first_seen
-                last_seen = aggregate.last_seen if scenario_run_id else connection.last_seen
-                connection_count = (
-                    aggregate.count if scenario_run_id else connection.connection_count
+                destination_port = (
+                    aggregate.observation.destination_port
+                    if scoped
+                    else connection.destination_port
                 )
-                last_status = aggregate.last_status if scenario_run_id else connection.last_status
+                protocol = aggregate.observation.protocol if scoped else connection.protocol
+                connection_type = (
+                    aggregate.observation.connection_type if scoped else connection.connection_type
+                )
+                first_seen = aggregate.first_seen if scoped else connection.first_seen
+                last_seen = aggregate.last_seen if scoped else connection.last_seen
+                connection_count = aggregate.count if scoped else connection.connection_count
+                last_status = aggregate.last_status if scoped else connection.last_status
                 edge_id = connection.id
             else:
                 assert aggregate is not None
@@ -521,7 +585,7 @@ class NetworkService:
                 )
             )
 
-        if scenario_run_id:
+        if scoped:
             visible_assets = [asset for asset in assets if asset.id in relevant_node_ids]
         else:
             visible_assets = assets
@@ -591,6 +655,7 @@ class NetworkService:
             generated_at=now,
             window=window,
             scenario=scenario,
+            incident=incident,
             nodes=nodes,
             edges=edges,
             alerts=alert_references,
@@ -600,7 +665,9 @@ class NetworkService:
                 asset_count=len(nodes),
                 connection_count=len(edges),
                 active_connection_count=sum(edge.activity_state == "active" for edge in edges),
-                open_alert_count=len(active_alerts),
+                open_alert_count=sum(
+                    alert.status in ACTIVE_ALERT_STATUSES for alert in node_alert_source
+                ),
                 high_risk_asset_count=sum(node.risk_score >= 60 for node in nodes),
                 activity_count=len(activities),
                 activity_truncated=activity_truncated,

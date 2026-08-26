@@ -4,7 +4,7 @@
 
 SENTINEL is an experimental security monitoring and Purple Team platform for controlled environments. It provides persistent asset inventory, normalized security-event storage, deterministic detections, evidence-backed alerts, live delivery, investigation workflows, and database-backed operational dashboards.
 
-> Current status: **Milestone 6 - Network / Attack Map**. Incident correlation and active response remain future milestones.
+> Current status: **Milestone 7 - Incident Correlation & Attack Story Reconstruction**. Investigation assistance and active response remain future milestones.
 
 ## What is SENTINEL?
 
@@ -37,6 +37,9 @@ SENTINEL is a portfolio-grade exploration of the architecture behind SIEM, EDR/X
 - Persistent, incrementally aggregated asset-to-asset network relationships
 - Backend-driven React Flow Attack Map with zone layout, live updates, filters, detail panels, and ATT&CK overlay
 - Exact ScenarioRun attack progression from explicitly attributed events, including historical runs
+- Persistent Incidents with deterministic multi-alert correlation and stored explanations
+- Evidence-backed chronological attack-story reconstruction with conservative language
+- Incident queue/detail workflows, live updates, lifecycle state, and incident-scoped Attack Map
 - Database-side dashboard summary and aggregation queries
 - Idempotent demo seeding with five lab assets and 180 coherent historical events
 - Searchable Assets, Asset Details, Events, Alerts, Alert Detail, and Detection Rules workflows
@@ -63,6 +66,10 @@ flowchart LR
     Engine --> Alerts[Alert service]
     Alerts --> DB
     Alerts -->|committed alert| WS
+    Alerts --> Correlation[Correlation engine]
+    Correlation --> Incidents[Incident and attack story]
+    Incidents --> DB
+    Incidents -->|committed incident| WS
     WS --> Proxy[Nginx]
     Proxy --> UI[React dashboard]
     UI -->|authoritative REST queries| Proxy
@@ -70,7 +77,7 @@ flowchart LR
     Seed[Deterministic demo seed] --> DB
 ```
 
-PostgreSQL remains the source of truth. WebSockets provide low-latency delivery; REST refetches repair any gap after reconnection. See [Architecture](docs/architecture.md), [Corporate Lab](docs/corporate-lab.md), [Attack Simulator](docs/attack-simulator.md), [Attack Map](docs/attack-map.md), [Detection Engine](docs/detection-engine.md), [Telemetry](docs/telemetry.md), [API Reference](docs/api.md), and [Security Model](docs/security-model.md).
+PostgreSQL remains the source of truth. WebSockets provide low-latency delivery; REST refetches repair any gap after reconnection. See [Architecture](docs/architecture.md), [Incident Correlation](docs/incident-correlation.md), [Corporate Lab](docs/corporate-lab.md), [Attack Simulator](docs/attack-simulator.md), [Attack Map](docs/attack-map.md), [Detection Engine](docs/detection-engine.md), [Telemetry](docs/telemetry.md), [API Reference](docs/api.md), and [Security Model](docs/security-model.md).
 
 ## Technology stack
 
@@ -100,6 +107,7 @@ Open:
 - Dashboard: <http://localhost:3000>
 - Events: <http://localhost:3000/events>
 - Alerts: <http://localhost:3000/alerts>
+- Incidents: <http://localhost:3000/incidents>
 - Detection rules: <http://localhost:3000/rules>
 - System and lab status: <http://localhost:3000/system>
 - Attack Simulator: <http://localhost:3000/simulator>
@@ -178,6 +186,20 @@ make network-rebuild
 ```
 
 See [Attack Map](docs/attack-map.md) for the identity rules, recency semantics, API contract, and limitations.
+
+## Incident correlation
+
+Every authoritative Alert is evaluated after commit against a bounded 15-minute active-Incident window. Stored evidence such as explicit ScenarioRun attribution, source identity, username, affected Assets, observed network relationships, time proximity, and forward detection progression contributes to an explainable score. Time alone is insufficient. Equal top scores remain separate rather than being merged arbitrarily.
+
+The `/incidents` queue and `/incidents/:id` detail page show lifecycle state, severity, deterministic confidence, affected Assets, observed ATT&CK mappings, stored correlation reasons, chronological story steps, Alert/Event evidence links, and an exact incident Attack Map. Confidence is not a compromise probability. Story language does not claim database queries or collection when telemetry proves only a connection.
+
+Run the flagship evidence flow after suppression cooldowns have expired:
+
+```bash
+make scenario-run SCENARIO=SCN-005
+```
+
+Then open the completed ScenarioRun, its correlated Incident, and **View Incident on Attack Map**. Historical Alerts that predate Milestone 7 can be associated non-destructively with `make incident-rebuild`. See [Incident Correlation](docs/incident-correlation.md).
 
 ## Live telemetry
 
@@ -291,6 +313,7 @@ cd backend
 ruff check . ../tools ../lab
 ruff format --check . ../tools ../lab
 python -m app.cli.validate_scenarios
+python -m app.cli.validate_correlation
 pytest
 alembic check
 
@@ -321,8 +344,8 @@ Published services bind to `127.0.0.1`; a hardened fixed-upstream gateway is the
 4. **Corporate Docker Lab - complete:** isolated enterprise services, real logs, collectors, status, and detection integration
 5. **Attack Simulator - complete:** five safe allow-listed scenarios, real lab execution, persistent results, and live progress
 6. **Network / Attack Map - complete:** persisted observed relationships, live topology, scenario progression, deep links, and ATT&CK overlay
-7. **Incident Correlation:** timelines and multi-stage breach scenario
-8. **MITRE ATT&CK Experience:** tactics, techniques, and attack progression
+7. **Incident Correlation - complete:** persistent explainable correlation, evidence-backed attack stories, lifecycle UI, live updates, and incident topology
+8. **Investigation Assistant / AI Incident Analysis:** analyst-guided incident analysis without automated response
 
 ## Project motivation
 

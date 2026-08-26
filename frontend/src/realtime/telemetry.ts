@@ -4,6 +4,7 @@ import type {
   AlertStatus,
   EventFilters,
   EventSeverity,
+  IncidentListItem,
   NetworkConnectionUpdate,
   Page,
   SecurityEvent,
@@ -50,6 +51,20 @@ export interface NetworkConnectionUpdatedMessage {
   data: NetworkConnectionUpdate;
 }
 
+export interface IncidentCreatedMessage {
+  version: "1";
+  type: "incident_created";
+  timestamp: string;
+  data: IncidentListItem;
+}
+
+export interface IncidentUpdatedMessage {
+  version: "1";
+  type: "incident_updated";
+  timestamp: string;
+  data: IncidentListItem;
+}
+
 export interface SimulationMessage {
   version: "1";
   type:
@@ -75,6 +90,8 @@ export type TelemetryMessage =
   | TelemetryStatusMessage
   | AlertCreatedMessage
   | AlertUpdatedMessage
+  | IncidentCreatedMessage
+  | IncidentUpdatedMessage
   | NetworkConnectionUpdatedMessage
   | SimulationMessage;
 
@@ -179,6 +196,31 @@ function isAlert(value: unknown): value is Alert {
   );
 }
 
+function isStringArray(value: unknown): value is string[] {
+  return (
+    Array.isArray(value) && value.every((item) => typeof item === "string")
+  );
+}
+
+function isIncidentListItem(value: unknown): value is IncidentListItem {
+  return (
+    isRecord(value) &&
+    typeof value.id === "string" &&
+    typeof value.incident_number === "string" &&
+    typeof value.title === "string" &&
+    isSeverity(value.severity) &&
+    typeof value.status === "string" &&
+    typeof value.confidence_score === "number" &&
+    typeof value.risk_score === "number" &&
+    typeof value.first_activity_at === "string" &&
+    typeof value.last_activity_at === "string" &&
+    typeof value.alert_count === "number" &&
+    typeof value.asset_count === "number" &&
+    typeof value.event_count === "number" &&
+    isStringArray(value.affected_assets)
+  );
+}
+
 function isNetworkConnectionUpdate(
   value: unknown,
 ): value is NetworkConnectionUpdate {
@@ -228,6 +270,13 @@ export function parseTelemetryMessage(raw: string): TelemetryMessage | null {
   }
   if (parsed.type === "alert_updated" && isAlert(parsed.data)) {
     return parsed as unknown as AlertUpdatedMessage;
+  }
+  if (
+    (parsed.type === "incident_created" ||
+      parsed.type === "incident_updated") &&
+    isIncidentListItem(parsed.data)
+  ) {
+    return parsed as unknown as IncidentCreatedMessage | IncidentUpdatedMessage;
   }
   if (
     parsed.type === "network_connection_updated" &&

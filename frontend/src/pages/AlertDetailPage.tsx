@@ -170,6 +170,23 @@ export function AlertDetailPage() {
               }
             />
           </dl>
+          <div className="mt-5 border-t border-line pt-4">
+            <p className="text-[10px] uppercase tracking-wider text-muted">
+              Incident
+            </p>
+            {data.incident ? (
+              <Link
+                className="mt-2 inline-flex text-xs text-accent hover:text-emerald-300"
+                to={`/incidents/${data.incident.id}`}
+              >
+                {data.incident.incident_number} · {data.incident.title}
+              </Link>
+            ) : (
+              <p className="mt-2 text-xs text-slate-500">
+                Not currently correlated
+              </p>
+            )}
+          </div>
         </section>
       </div>
 

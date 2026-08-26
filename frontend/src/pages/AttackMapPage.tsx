@@ -42,6 +42,7 @@ const views: { label: string; value: TopologyView }[] = [
   { label: "Alert context", value: "alerts" },
   { label: "High risk", value: "high-risk" },
   { label: "Scenario activity", value: "scenario" },
+  { label: "Incident evidence", value: "incident" },
 ];
 
 function Metric({ label, value }: { label: string; value: number }) {
@@ -174,6 +175,7 @@ export function AttackMapPage() {
   const requestedRun = searchParams.get("run");
   const requestedAsset = searchParams.get("asset");
   const requestedAlert = searchParams.get("alert");
+  const requestedIncident = searchParams.get("incident");
   const requestedWindow = searchParams.get("window");
   const window = windows.some((item) => item.value === requestedWindow)
     ? (requestedWindow as TopologyWindow)
@@ -181,13 +183,15 @@ export function AttackMapPage() {
   const scenarioRunId = isUuid(requestedRun) ? requestedRun : undefined;
   const assetId = isUuid(requestedAsset) ? requestedAsset : undefined;
   const alertId = isUuid(requestedAlert) ? requestedAlert : undefined;
+  const incidentId = isUuid(requestedIncident) ? requestedIncident : undefined;
   const invalidDeepLink = Boolean(
     (requestedRun && !scenarioRunId) ||
     (requestedAsset && !assetId) ||
-    (requestedAlert && !alertId),
+    (requestedAlert && !alertId) ||
+    (requestedIncident && !incidentId),
   );
   const [view, setView] = useState<TopologyView>(
-    initialTopologyView(scenarioRunId),
+    initialTopologyView(scenarioRunId, incidentId),
   );
   const [hiddenZones, setHiddenZones] = useState<ReadonlySet<string>>(
     () => new Set(),
@@ -197,6 +201,7 @@ export function AttackMapPage() {
   const topology = useNetworkTopology({
     window,
     scenario_run_id: scenarioRunId,
+    incident_id: incidentId,
     asset_id: assetId,
     alert_id: alertId,
   });
@@ -260,7 +265,13 @@ export function AttackMapPage() {
           </div>
         }
         description="Observed Corporate Lab assets, communication paths, alert context, and scenario progression. No unobserved path is inferred."
-        eyebrow={data.scenario ? "Scenario topology" : "Network intelligence"}
+        eyebrow={
+          data.incident
+            ? "Incident topology"
+            : data.scenario
+              ? "Scenario topology"
+              : "Network intelligence"
+        }
         title="Attack Map"
       />
 
@@ -307,6 +318,42 @@ export function AttackMapPage() {
         </section>
       ) : null}
 
+      {data.incident ? (
+        <section className="mt-5 flex flex-col justify-between gap-3 rounded-xl border border-accent/20 bg-accent/[0.04] p-4 sm:flex-row sm:items-center">
+          <div>
+            <p className="text-[10px] uppercase tracking-wider text-accent">
+              {data.incident.incident_number} · {humanize(data.incident.status)}
+            </p>
+            <p className="mt-1 text-sm font-medium text-slate-100">
+              {data.incident.title}
+            </p>
+            <p className="mt-1 text-xs text-muted">
+              {data.incident.event_count} evidence events ·{" "}
+              {data.incident.alert_count} alerts. Only persisted alert evidence
+              relationships are shown.
+            </p>
+          </div>
+          <div className="flex gap-3 text-xs">
+            <Link
+              className="text-accent hover:text-emerald-300"
+              to={`/incidents/${data.incident.id}`}
+            >
+              Incident detail
+            </Link>
+            <button
+              className="text-slate-400 hover:text-white"
+              onClick={() => {
+                updateParameter("incident");
+                setView("all");
+              }}
+              type="button"
+            >
+              Return to live
+            </button>
+          </div>
+        </section>
+      ) : null}
+
       <section className="mt-5 rounded-xl border border-line bg-panel p-4 shadow-panel">
         <div className="flex flex-wrap items-center gap-3">
           <label className="flex items-center gap-2 text-[10px] uppercase tracking-wider text-muted">
@@ -333,7 +380,10 @@ export function AttackMapPage() {
                     ? "bg-accent/10 text-accent"
                     : "text-muted hover:text-slate-200"
                 }`}
-                disabled={item.value === "scenario" && !data.scenario}
+                disabled={
+                  (item.value === "scenario" && !data.scenario) ||
+                  (item.value === "incident" && !data.incident)
+                }
                 key={item.value}
                 onClick={() => setView(item.value)}
                 type="button"

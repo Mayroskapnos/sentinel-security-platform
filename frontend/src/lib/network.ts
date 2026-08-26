@@ -88,13 +88,18 @@ export function mergeConnectionUpdates(
   );
 }
 
-export type TopologyView = "all" | "alerts" | "high-risk" | "scenario";
+export type TopologyView =
+  "all" | "alerts" | "high-risk" | "scenario" | "incident";
 
 export function topologyLiveLabel(labOffline: boolean) {
   return labOffline ? "Historical · lab offline" : "Live updates";
 }
 
-export function initialTopologyView(scenarioRunId?: string): TopologyView {
+export function initialTopologyView(
+  scenarioRunId?: string,
+  incidentId?: string,
+): TopologyView {
+  if (incidentId) return "incident";
   return scenarioRunId ? "scenario" : "all";
 }
 

@@ -8,6 +8,7 @@ export function authoritativeRefreshQueryKeys() {
   return [
     queryKeys.events.all,
     queryKeys.alerts.all,
+    queryKeys.incidents.all,
     queryKeys.dashboard.all,
     queryKeys.assets.all,
     queryKeys.simulator.all,

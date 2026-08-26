@@ -21,7 +21,12 @@ import {
   LoadingState,
 } from "../components/data/QueryState";
 import { RiskIndicator } from "../components/data/RiskIndicator";
-import { useAlerts, useAsset, useEvents } from "../hooks/useCoreData";
+import {
+  useAlerts,
+  useAsset,
+  useEvents,
+  useIncidents,
+} from "../hooks/useCoreData";
 import { endpoint, formatDateTime, humanize } from "../lib/format";
 
 function Detail({ label, value }: { label: string; value: string }) {
@@ -45,6 +50,11 @@ export function AssetDetailPage() {
     active_only: true,
     page: 1,
     page_size: 1,
+  });
+  const incidents = useIncidents({
+    asset_id: assetId,
+    page: 1,
+    page_size: 5,
   });
 
   if (asset.isLoading) return <LoadingState label="Loading asset profile" />;
@@ -161,6 +171,53 @@ export function AssetDetailPage() {
             />
           </dl>
         </article>
+      </section>
+
+      <section className="mt-6 rounded-xl border border-line bg-panel p-5 shadow-panel">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h2 className="text-sm font-semibold text-slate-100">
+              Active and recent incidents
+            </h2>
+            <p className="mt-1 text-xs text-muted">
+              Server-filtered incidents with evidence involving this asset
+            </p>
+          </div>
+          <Link
+            className="text-xs text-accent hover:text-emerald-300"
+            to={`/incidents?asset_id=${asset.data.id}`}
+          >
+            View all
+          </Link>
+        </div>
+        {incidents.isLoading ? (
+          <LoadingState label="Loading asset incidents" />
+        ) : incidents.isError ? (
+          <ErrorState error={incidents.error} />
+        ) : !incidents.data?.items.length ? (
+          <p className="mt-4 text-xs text-muted">
+            No incidents currently include this asset.
+          </p>
+        ) : (
+          <div className="mt-4 grid gap-3 md:grid-cols-2">
+            {incidents.data.items.map((incident) => (
+              <Link
+                className="rounded-lg border border-line/70 bg-[#0b111a] p-4 hover:border-accent/30"
+                key={incident.id}
+                to={`/incidents/${incident.id}`}
+              >
+                <p className="font-mono text-[10px] text-accent">
+                  {incident.incident_number} · {incident.status}
+                </p>
+                <p className="mt-2 text-xs text-slate-200">{incident.title}</p>
+                <p className="mt-2 text-[10px] text-muted">
+                  {incident.alert_count} alerts · confidence{" "}
+                  {incident.confidence_score} / 100
+                </p>
+              </Link>
+            ))}
+          </div>
+        )}
       </section>
 
       <section className="mt-6 overflow-hidden rounded-xl border border-line bg-panel shadow-panel">

@@ -8,7 +8,9 @@ from app.realtime.manager import WebSocketManager, websocket_manager
 from app.repositories.alerts import AlertRepository
 from app.schemas.alert import AlertDetailResponse, AlertFilters, AlertResponse, AlertUpdate
 from app.schemas.common import Page
-from app.schemas.realtime import AlertUpdatedMessage
+from app.schemas.incident import IncidentListItem
+from app.schemas.realtime import AlertUpdatedMessage, IncidentUpdatedMessage
+from app.services.incidents import IncidentService
 from app.services.risk import RiskService
 
 ALLOWED_TRANSITIONS = {
@@ -61,4 +63,9 @@ class AlertService:
         assert refreshed is not None
         response = AlertResponse.model_validate(refreshed)
         await self.manager.broadcast(AlertUpdatedMessage(data=response))
+        if refreshed.incident:
+            incident = await IncidentService(self.session).recalculate(refreshed.incident.id)
+            await self.manager.broadcast(
+                IncidentUpdatedMessage(data=IncidentListItem.model_validate(incident.model_dump()))
+            )
         return response

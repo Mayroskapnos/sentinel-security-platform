@@ -14,9 +14,11 @@ from app.core.errors import AppError, ConflictError, NotFoundError
 from app.models.alert import Alert, AlertEvent
 from app.models.detection_rule import DetectionRule
 from app.models.enums import ScenarioRunStatus, ScenarioStepStatus
+from app.models.incident import Incident
 from app.models.scenario_run import ScenarioRun
 from app.models.security_event import SecurityEvent
 from app.realtime.manager import websocket_manager
+from app.schemas.incident import IncidentReference
 from app.schemas.realtime import (
     SimulationCancelledMessage,
     SimulationFailedMessage,
@@ -440,6 +442,12 @@ class ScenarioOrchestrator:
             )
             for rule_id in run.expected_detections
         ]
+        correlated_incident = await session.scalar(
+            select(Incident)
+            .where(Incident.scenario_run_id == run.id)
+            .order_by(Incident.last_activity_at.desc())
+            .limit(1)
+        )
         response = ScenarioRunResponse.model_validate(run)
         return response.model_copy(
             update={
@@ -447,6 +455,11 @@ class ScenarioOrchestrator:
                 "alert_count": len(alerts),
                 "detections": detections,
                 "alerts": alerts,
+                "incident": (
+                    IncidentReference.model_validate(correlated_incident, from_attributes=True)
+                    if correlated_incident
+                    else None
+                ),
             },
         )
 

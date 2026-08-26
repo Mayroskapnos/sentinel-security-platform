@@ -1,4 +1,9 @@
-import type { AlertStatus, AssetStatus, EventSeverity } from "../../types/core";
+import type {
+  AlertStatus,
+  AssetStatus,
+  EventSeverity,
+  IncidentStatus,
+} from "../../types/core";
 import { humanize } from "../../lib/format";
 
 const severityStyles: Record<EventSeverity, string> = {
@@ -55,4 +60,16 @@ const alertStatusStyles: Record<AlertStatus, string> = {
 
 export function AlertStatusBadge({ status }: { status: AlertStatus }) {
   return <BadgeBase className={alertStatusStyles[status]} value={status} />;
+}
+
+const incidentStatusStyles: Record<IncidentStatus, string> = {
+  open: "border-cyan-400/25 bg-cyan-400/10 text-cyan-300",
+  investigating: "border-amber-400/25 bg-amber-400/10 text-amber-300",
+  contained: "border-violet-400/25 bg-violet-400/10 text-violet-300",
+  resolved: "border-emerald-400/25 bg-emerald-400/10 text-emerald-300",
+  false_positive: "border-slate-500/25 bg-slate-500/10 text-slate-300",
+};
+
+export function IncidentStatusBadge({ status }: { status: IncidentStatus }) {
+  return <BadgeBase className={incidentStatusStyles[status]} value={status} />;
 }

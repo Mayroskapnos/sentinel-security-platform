@@ -15,6 +15,8 @@ export type EventSeverity =
   "informational" | "low" | "medium" | "high" | "critical";
 export type AlertStatus =
   "new" | "investigating" | "resolved" | "false_positive";
+export type IncidentStatus =
+  "open" | "investigating" | "contained" | "resolved" | "false_positive";
 export type RuleType = "threshold" | "sequence" | "single_event";
 export type ScenarioRunStatus =
   "pending" | "running" | "completed" | "failed" | "cancelled";
@@ -110,6 +112,120 @@ export interface Alert {
   last_event_at: string;
   created_at: string;
   updated_at: string;
+  incident: IncidentReference | null;
+}
+
+export interface IncidentReference {
+  id: string;
+  incident_number: string;
+  title: string;
+  severity: EventSeverity;
+  status: IncidentStatus;
+}
+
+export interface CorrelationSignal {
+  type: string;
+  weight: number;
+  strength: "foundational" | "strong" | "moderate" | "supporting";
+  description: string;
+  details: Record<string, unknown>;
+}
+
+export interface IncidentListItem extends IncidentReference {
+  confidence_score: number;
+  risk_score: number;
+  first_activity_at: string;
+  last_activity_at: string;
+  created_at: string;
+  updated_at: string;
+  alert_count: number;
+  asset_count: number;
+  event_count: number;
+  affected_assets: string[];
+  scenario_run_id: string | null;
+}
+
+export interface IncidentAlertReference {
+  id: string;
+  rule_id: string;
+  title: string;
+  severity: EventSeverity;
+  status: AlertStatus;
+  timestamp: string;
+  first_event_at: string;
+  last_event_at: string;
+  asset_id: string | null;
+  asset_hostname: string | null;
+  evidence_count: number;
+  correlation_score: number;
+  correlation_reasons: CorrelationSignal[];
+}
+
+export interface IncidentAssetReference {
+  id: string;
+  hostname: string;
+  display_name: string;
+  ip_address: string;
+  asset_type: string;
+  network_zone: string;
+  criticality: string;
+  status: string;
+  risk_score: number;
+}
+
+export interface IncidentStoryItem {
+  timestamp: string;
+  stage: string;
+  title: string;
+  description: string;
+  alert_id: string;
+  rule_id: string;
+  asset_ids: string[];
+  event_ids: string[];
+  source_ip: string | null;
+  destination_ip: string | null;
+  mitre_technique_id: string | null;
+  mitre_technique_name: string | null;
+  network_connection_id: string | null;
+  scenario_step: string | null;
+}
+
+export interface IncidentDetail extends IncidentListItem {
+  description: string;
+  summary: string;
+  closed_at: string | null;
+  assigned_to: string | null;
+  correlation_signals: CorrelationSignal[];
+  story: IncidentStoryItem[];
+  alerts: IncidentAlertReference[];
+  assets: IncidentAssetReference[];
+  observed_techniques: Array<{
+    technique_id: string;
+    technique_name: string;
+    tactic: string;
+    first_observed_at: string;
+    alert_ids: string[];
+  }>;
+  scenario: {
+    id: string;
+    scenario_id: string;
+    scenario_name: string;
+    status: string;
+  } | null;
+  metadata_json: Record<string, unknown>;
+}
+
+export interface IncidentFilters {
+  severity?: EventSeverity;
+  status?: IncidentStatus;
+  asset_id?: string;
+  scenario_run_id?: string;
+  confidence_min?: number;
+  start_time?: string;
+  end_time?: string;
+  search?: string;
+  page?: number;
+  page_size?: number;
 }
 
 export type EvidenceEvent = Omit<
@@ -200,6 +316,8 @@ export interface DashboardSummary {
   open_alerts: number;
   critical_alerts: number;
   high_alerts: number;
+  open_incidents: number;
+  critical_incidents: number;
 }
 
 export interface CountBucket {
@@ -324,6 +442,7 @@ export interface ScenarioRun {
   alert_count: number;
   detections: DetectionObservation[];
   alerts: ScenarioAlertReference[];
+  incident: IncidentReference | null;
 }
 
 export interface SimulatorStatus {
@@ -431,10 +550,16 @@ export interface TopologyScenarioContext {
   finished_at: string | null;
 }
 
+export interface TopologyIncidentContext extends IncidentReference {
+  event_count: number;
+  alert_count: number;
+}
+
 export interface NetworkTopology {
   generated_at: string;
   window: TopologyWindow;
   scenario: TopologyScenarioContext | null;
+  incident: TopologyIncidentContext | null;
   nodes: TopologyNode[];
   edges: TopologyEdge[];
   alerts: TopologyAlert[];
@@ -454,6 +579,7 @@ export interface NetworkTopology {
 export interface TopologyParameters {
   window: TopologyWindow;
   scenario_run_id?: string;
+  incident_id?: string;
   asset_id?: string;
   alert_id?: string;
 }
