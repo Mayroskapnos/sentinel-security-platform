@@ -5,6 +5,7 @@ import {
   Circle,
   Clock3,
   LoaderCircle,
+  Network,
   ShieldCheck,
   XCircle,
 } from "lucide-react";
@@ -63,20 +64,28 @@ export function ScenarioRunPage() {
       </Link>
       <PageHeading
         actions={
-          active ? (
-            <button
-              className="rounded-md border border-amber-400/25 bg-amber-400/[0.06] px-3 py-2 text-xs text-amber-200 hover:bg-amber-400/10 disabled:opacity-60"
-              disabled={cancel.isPending}
-              onClick={() => cancel.mutate(run.id)}
-              type="button"
+          <div className="flex flex-wrap gap-2">
+            <Link
+              className="inline-flex items-center gap-2 rounded-md border border-accent/25 bg-accent/[0.06] px-3 py-2 text-xs text-accent hover:bg-accent/10"
+              to={`/attack-map?run=${run.id}`}
             >
-              Cancel future steps
-            </button>
-          ) : (
-            <span className="rounded-md border border-line bg-panel px-3 py-2 text-xs uppercase tracking-wider text-slate-300">
-              {run.status}
-            </span>
-          )
+              <Network className="size-3.5" /> View attack progression
+            </Link>
+            {active ? (
+              <button
+                className="rounded-md border border-amber-400/25 bg-amber-400/[0.06] px-3 py-2 text-xs text-amber-200 hover:bg-amber-400/10 disabled:opacity-60"
+                disabled={cancel.isPending}
+                onClick={() => cancel.mutate(run.id)}
+                type="button"
+              >
+                Cancel future steps
+              </button>
+            ) : (
+              <span className="rounded-md border border-line bg-panel px-3 py-2 text-xs uppercase tracking-wider text-slate-300">
+                {run.status}
+              </span>
+            )}
+          </div>
         }
         description="Backend-owned execution state and telemetry-backed observations for this controlled lab run."
         eyebrow={`${run.scenario_id} · ${run.id.slice(0, 8)}`}

@@ -4,6 +4,7 @@ import type {
   AlertStatus,
   EventFilters,
   EventSeverity,
+  NetworkConnectionUpdate,
   Page,
   SecurityEvent,
 } from "../types/core";
@@ -42,6 +43,13 @@ export interface AlertUpdatedMessage {
   data: Alert;
 }
 
+export interface NetworkConnectionUpdatedMessage {
+  version: "1";
+  type: "network_connection_updated";
+  timestamp: string;
+  data: NetworkConnectionUpdate;
+}
+
 export interface SimulationMessage {
   version: "1";
   type:
@@ -67,6 +75,7 @@ export type TelemetryMessage =
   | TelemetryStatusMessage
   | AlertCreatedMessage
   | AlertUpdatedMessage
+  | NetworkConnectionUpdatedMessage
   | SimulationMessage;
 
 const severities = new Set<EventSeverity>([
@@ -170,6 +179,23 @@ function isAlert(value: unknown): value is Alert {
   );
 }
 
+function isNetworkConnectionUpdate(
+  value: unknown,
+): value is NetworkConnectionUpdate {
+  return (
+    isRecord(value) &&
+    typeof value.id === "string" &&
+    typeof value.source_asset_id === "string" &&
+    typeof value.destination_asset_id === "string" &&
+    isNullableNumber(value.destination_port) &&
+    typeof value.protocol === "string" &&
+    typeof value.connection_type === "string" &&
+    typeof value.last_seen === "string" &&
+    typeof value.connection_count === "number" &&
+    typeof value.last_status === "string"
+  );
+}
+
 export function parseTelemetryMessage(raw: string): TelemetryMessage | null {
   let parsed: unknown;
   try {
@@ -202,6 +228,12 @@ export function parseTelemetryMessage(raw: string): TelemetryMessage | null {
   }
   if (parsed.type === "alert_updated" && isAlert(parsed.data)) {
     return parsed as unknown as AlertUpdatedMessage;
+  }
+  if (
+    parsed.type === "network_connection_updated" &&
+    isNetworkConnectionUpdate(parsed.data)
+  ) {
+    return parsed as unknown as NetworkConnectionUpdatedMessage;
   }
   if (
     [

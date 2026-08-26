@@ -1,4 +1,4 @@
-.PHONY: setup dev up down logs test lint build config migrate rules seed demo reset telemetry telemetry-burst detection-demo lab-up lab-down lab-logs lab-status lab-reset lab-activity-web lab-activity-db lab-activity-auth lab-activity-privilege simulator-status scenario-list scenario-run scenario-history validate-scenarios test-lab clean
+.PHONY: setup dev up down logs test lint build config migrate rules seed demo reset telemetry telemetry-burst detection-demo lab-up lab-down lab-logs lab-status lab-reset lab-activity-web lab-activity-db lab-activity-auth lab-activity-privilege simulator-status scenario-list scenario-run scenario-history validate-scenarios network-rebuild network-integration test-lab clean
 
 setup:
 	@test -f .env || cp .env.example .env
@@ -97,6 +97,12 @@ scenario-history:
 
 validate-scenarios:
 	cd backend && python -m app.cli.validate_scenarios
+
+network-rebuild:
+	docker compose exec -T backend python -m app.cli.rebuild_network_connections
+
+network-integration:
+	backend/.venv/bin/python tools/network_integration_test.py
 
 test-lab:
 	python tools/lab_integration_test.py

@@ -78,17 +78,25 @@ export function AssetDetailPage() {
             </p>
           </div>
         </div>
-        <div className="w-full rounded-xl border border-line bg-panel p-4 sm:w-56">
-          <div className="flex items-center gap-2 text-xs font-medium text-slate-300">
-            <Shield className="size-4 text-accent" />
-            Current risk score
+        <div className="w-full sm:w-56">
+          <Link
+            className="mb-2 flex items-center justify-center gap-2 rounded-lg border border-accent/25 bg-accent/[0.06] px-3 py-2 text-xs text-accent hover:bg-accent/10"
+            to={`/attack-map?asset=${asset.data.id}`}
+          >
+            <Network className="size-3.5" /> Show on Attack Map
+          </Link>
+          <div className="rounded-xl border border-line bg-panel p-4">
+            <div className="flex items-center gap-2 text-xs font-medium text-slate-300">
+              <Shield className="size-4 text-accent" />
+              Current risk score
+            </div>
+            <div className="mt-4">
+              <RiskIndicator detailed score={asset.data.risk_score} />
+            </div>
+            <p className="mt-3 text-[10px] leading-4 text-muted">
+              Experimental prioritization value; not a scientific probability.
+            </p>
           </div>
-          <div className="mt-4">
-            <RiskIndicator detailed score={asset.data.risk_score} />
-          </div>
-          <p className="mt-3 text-[10px] leading-4 text-muted">
-            Experimental prioritization value; not a scientific probability.
-          </p>
         </div>
       </div>
 

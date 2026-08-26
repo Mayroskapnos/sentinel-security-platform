@@ -53,6 +53,7 @@ export function TelemetryProvider({ children }: { children: ReactNode }) {
     let socket: WebSocket | null = null;
     let reconnectTimer: number | undefined;
     let refreshTimer: number | undefined;
+    let networkRefreshTimer: number | undefined;
     let attempt = 0;
     let connectedBefore = false;
     const pendingAssetIds = new Set<string>();
@@ -79,6 +80,17 @@ export function TelemetryProvider({ children }: { children: ReactNode }) {
         });
         pendingAssetIds.clear();
       }, 750);
+    }
+
+    function scheduleNetworkRefresh() {
+      if (networkRefreshTimer !== undefined)
+        window.clearTimeout(networkRefreshTimer);
+      networkRefreshTimer = window.setTimeout(() => {
+        void queryClient.invalidateQueries({
+          queryKey: queryKeys.network.all,
+          refetchType: "active",
+        });
+      }, 300);
     }
 
     function markLive(eventId: string) {
@@ -224,10 +236,14 @@ export function TelemetryProvider({ children }: { children: ReactNode }) {
           parsed?.type === "alert_updated"
         ) {
           handleAlert(parsed.data);
+          scheduleNetworkRefresh();
+        } else if (parsed?.type === "network_connection_updated") {
+          scheduleNetworkRefresh();
         } else if (parsed?.type.startsWith("simulation_")) {
           void queryClient.invalidateQueries({
             queryKey: queryKeys.simulator.all,
           });
+          scheduleNetworkRefresh();
         }
       };
       socket.onerror = () => setConnectionState("error");
@@ -243,6 +259,8 @@ export function TelemetryProvider({ children }: { children: ReactNode }) {
       setConnectionState("disconnected");
       if (reconnectTimer !== undefined) window.clearTimeout(reconnectTimer);
       if (refreshTimer !== undefined) window.clearTimeout(refreshTimer);
+      if (networkRefreshTimer !== undefined)
+        window.clearTimeout(networkRefreshTimer);
       timers.forEach((timer) => window.clearTimeout(timer));
       timers.clear();
       alertTimers.forEach((timer) => window.clearTimeout(timer));

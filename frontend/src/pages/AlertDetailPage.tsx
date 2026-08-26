@@ -1,4 +1,10 @@
-import { ArrowLeft, Clock3, FileSearch, ShieldAlert } from "lucide-react";
+import {
+  ArrowLeft,
+  Clock3,
+  FileSearch,
+  Network,
+  ShieldAlert,
+} from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 
 import { AlertStatusBadge, SeverityBadge } from "../components/data/Badge";
@@ -77,6 +83,14 @@ export function AlertDetailPage() {
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
+            {data.asset_id || data.source_ip || data.destination_ip ? (
+              <Link
+                className="inline-flex items-center gap-2 rounded-md border border-accent/25 bg-accent/[0.06] px-3 py-2 text-xs text-accent hover:bg-accent/10"
+                to={`/attack-map?alert=${data.id}`}
+              >
+                <Network className="size-3.5" /> Show topology context
+              </Link>
+            ) : null}
             {availableStatuses.map((status) => (
               <button
                 className="rounded-md border border-line bg-white/[0.025] px-3 py-2 text-xs text-slate-300 hover:border-accent/30 hover:text-accent disabled:opacity-50"

@@ -32,7 +32,7 @@ const primaryNavigation: NavigationItem[] = [
   { label: "Events", icon: Activity, to: "/events" },
   { label: "Alerts", icon: BellRing, to: "/alerts" },
   { label: "Incidents", icon: ShieldCheck },
-  { label: "Attack Map", icon: Network },
+  { label: "Attack Map", icon: Network, to: "/attack-map" },
   { label: "Detection Rules", icon: ScrollText, to: "/rules" },
   { label: "Attack Simulator", icon: Crosshair, to: "/simulator" },
 ];

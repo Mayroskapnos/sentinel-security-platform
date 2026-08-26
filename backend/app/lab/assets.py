@@ -41,6 +41,7 @@ LAB_ASSETS: list[dict[str, Any]] = [
             "service": "corporate-portal",
             "container": "sentinel-web",
             "lab_version": "0.1",
+            "ip_aliases": ["10.10.20.20", "10.10.30.30"],
         },
     },
     {
@@ -101,6 +102,7 @@ LAB_ASSETS: list[dict[str, Any]] = [
             "role": "administration",
             "container": "sentinel-admin",
             "lab_version": "0.1",
+            "ip_aliases": ["10.10.20.30"],
         },
     },
     {
@@ -121,6 +123,7 @@ LAB_ASSETS: list[dict[str, Any]] = [
             "service": "corp_demo",
             "container": "sentinel-db",
             "lab_version": "0.1",
+            "ip_aliases": ["10.10.20.21"],
         },
     },
 ]

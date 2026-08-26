@@ -114,7 +114,9 @@ class TelemetryClient:
     def __init__(self, target: str, collector_key: str | None = None) -> None:
         parsed = urlparse(target)
         if parsed.scheme not in {"http", "https"} or not parsed.hostname:
-            raise ValueError("target must be an explicit http:// or https:// SENTINEL URL")
+            raise ValueError(
+                "target must be an explicit http:// or https:// SENTINEL URL"
+            )
         if parsed.query or parsed.fragment:
             raise ValueError("target URL must not contain a query string or fragment")
         self.scheme = parsed.scheme
@@ -126,7 +128,9 @@ class TelemetryClient:
 
     def _connect(self) -> http.client.HTTPConnection:
         connection_class = (
-            http.client.HTTPSConnection if self.scheme == "https" else http.client.HTTPConnection
+            http.client.HTTPSConnection
+            if self.scheme == "https"
+            else http.client.HTTPConnection
         )
         self.connection = connection_class(self.host, self.port, timeout=10)
         return self.connection
@@ -156,10 +160,16 @@ class TelemetryClient:
                 response_body = response.read()
                 if response.status != 201:
                     detail = response_body.decode("utf-8", errors="replace")[:300]
-                    raise RuntimeError(f"ingestion returned HTTP {response.status}: {detail}")
+                    raise RuntimeError(
+                        f"ingestion returned HTTP {response.status}: {detail}"
+                    )
                 parsed: Any = json.loads(response_body)
-                if not isinstance(parsed, dict) or not isinstance(parsed.get("id"), str):
-                    raise TypeError("ingestion response did not contain a database event ID")
+                if not isinstance(parsed, dict) or not isinstance(
+                    parsed.get("id"), str
+                ):
+                    raise TypeError(
+                        "ingestion response did not contain a database event ID"
+                    )
                 return parsed
             except (ConnectionError, http.client.HTTPException):
                 self.close()
@@ -210,7 +220,9 @@ def detection_demo_events(source_ip: str) -> Iterator[dict[str, Any]]:
                 "mode": "detection_demo",
                 "attempt": attempt,
             },
-            "raw_event": {"message": f"Synthetic failed SSH authentication attempt {attempt}"},
+            "raw_event": {
+                "message": f"Synthetic failed SSH authentication attempt {attempt}"
+            },
         }
 
 
@@ -225,7 +237,9 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--collector-key",
-        default=os.getenv("COLLECTOR_API_KEY", "sentinel_local_collector_key_change_me"),
+        default=os.getenv(
+            "COLLECTOR_API_KEY", "sentinel_local_collector_key_change_me"
+        ),
         help="Collector ingestion key (default: COLLECTOR_API_KEY or local lab default)",
     )
     parser.add_argument(
@@ -233,18 +247,26 @@ def parse_args() -> argparse.Namespace:
         choices=("single", "stream", "burst", "detection-demo"),
         default="single",
     )
-    parser.add_argument("--count", type=int, help="Number of events (stream: 25, burst: 100)")
-    parser.add_argument("--interval", type=float, help="Seconds between stream events (default: 2)")
+    parser.add_argument(
+        "--count", type=int, help="Number of events (stream: 25, burst: 100)"
+    )
+    parser.add_argument(
+        "--interval", type=float, help="Seconds between stream events (default: 2)"
+    )
     parser.add_argument(
         "--demo-source-ip",
         default="10.10.50.250",
         help="Source IP grouped by the synthetic SSH detection demo",
     )
     args = parser.parse_args()
-    default_count = {"single": 1, "stream": 25, "burst": 100, "detection-demo": 10}[args.mode]
+    default_count = {"single": 1, "stream": 25, "burst": 100, "detection-demo": 10}[
+        args.mode
+    ]
     args.count = default_count if args.count is None else args.count
     args.interval = (
-        (2.0 if args.mode == "stream" else 0.02) if args.interval is None else args.interval
+        (2.0 if args.mode == "stream" else 0.02)
+        if args.interval is None
+        else args.interval
     )
     if not 1 <= args.count <= 1_000:
         parser.error("--count must be between 1 and 1000")

@@ -16,6 +16,7 @@ import {
   parseTelemetryMessage,
   reconnectDelay,
 } from "./telemetry";
+import { mergeConnectionUpdates } from "../lib/network";
 
 function securityEvent(overrides: Partial<SecurityEvent> = {}): SecurityEvent {
   return {
@@ -132,6 +133,41 @@ describe("telemetry message parsing", () => {
     );
     expect(parsed?.type).toBe("simulation_step");
   });
+
+  it("accepts compact connection updates and deduplicates them by identity", () => {
+    const update = {
+      id: "3dc90e82-759a-4ef1-b60b-24c4e8dd5685",
+      source_asset_id: "1a7a65a3-4cb0-4fa6-a2ea-1e266594ee8d",
+      destination_asset_id: "52384fa9-ebc1-475e-a1d7-16c8a3a3781a",
+      destination_port: 22,
+      protocol: "tcp",
+      connection_type: "ssh",
+      last_seen: "2026-08-25T12:10:00Z",
+      connection_count: 12,
+      last_status: "success",
+    };
+    const parsed = parseTelemetryMessage(
+      JSON.stringify({
+        version: "1",
+        type: "network_connection_updated",
+        timestamp: update.last_seen,
+        data: update,
+      }),
+    );
+    expect(parsed?.type).toBe("network_connection_updated");
+    expect(
+      mergeConnectionUpdates(
+        [
+          {
+            ...update,
+            connection_count: 11,
+            last_seen: "2026-08-25T12:09:00Z",
+          },
+        ],
+        update,
+      ),
+    ).toEqual([update]);
+  });
 });
 
 describe("live event cache behavior", () => {
@@ -233,5 +269,6 @@ describe("reconnect backoff", () => {
     expect(shouldRefreshAuthoritativeState(false)).toBe(false);
     expect(shouldRefreshAuthoritativeState(true)).toBe(true);
     expect(authoritativeRefreshQueryKeys()).toContain(queryKeys.simulator.all);
+    expect(authoritativeRefreshQueryKeys()).toContain(queryKeys.network.all);
   });
 });

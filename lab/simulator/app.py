@@ -30,7 +30,9 @@ def verify_key(
     provided: Annotated[str | None, Header(alias="X-Sentinel-Simulation-Key")] = None,
 ) -> None:
     if provided is None or not compare_digest(provided, SIMULATION_KEY):
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "simulation authentication failed")
+        raise HTTPException(
+            status.HTTP_401_UNAUTHORIZED, "simulation authentication failed"
+        )
 
 
 app = FastAPI(
@@ -76,7 +78,9 @@ async def health() -> dict[str, str]:
     return {"status": "healthy"}
 
 
-@app.post("/internal/simulator/actions/auth-failures", dependencies=[Depends(verify_key)])
+@app.post(
+    "/internal/simulator/actions/auth-failures", dependencies=[Depends(verify_key)]
+)
 async def authentication_failures(
     payload: AuthenticationFailureRequest,
 ) -> dict[str, Any]:
@@ -85,7 +89,9 @@ async def authentication_failures(
     return await call_host("employee", "auth-failures", body)
 
 
-@app.post("/internal/simulator/actions/auth-success", dependencies=[Depends(verify_key)])
+@app.post(
+    "/internal/simulator/actions/auth-success", dependencies=[Depends(verify_key)]
+)
 async def authentication_success(payload: ActionRequest) -> dict[str, Any]:
     body = {**payload.model_dump(mode="json"), "count": 1}
     await call_host("admin", "prepare-auth", body)
@@ -93,9 +99,13 @@ async def authentication_success(payload: ActionRequest) -> dict[str, Any]:
     return await call_host("employee", "auth-success", body)
 
 
-@app.post("/internal/simulator/actions/service-discovery", dependencies=[Depends(verify_key)])
+@app.post(
+    "/internal/simulator/actions/service-discovery", dependencies=[Depends(verify_key)]
+)
 async def service_discovery(payload: ActionRequest) -> dict[str, Any]:
-    return await call_host("employee", "service-discovery", payload.model_dump(mode="json"))
+    return await call_host(
+        "employee", "service-discovery", payload.model_dump(mode="json")
+    )
 
 
 @app.post("/internal/simulator/actions/privilege", dependencies=[Depends(verify_key)])

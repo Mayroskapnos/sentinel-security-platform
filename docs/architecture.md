@@ -1,6 +1,6 @@
 # SENTINEL Architecture
 
-This document describes the implemented Milestone 5 architecture. Incident correlation, the Attack Map, active response, and general offensive workflows are not operational components.
+This document describes the implemented Milestone 6 architecture. Incident correlation, active response, and general offensive workflows are not operational components.
 
 ## Runtime topology
 
@@ -21,6 +21,7 @@ flowchart LR
     Engine[Detection Engine]
     Rules[Detection Rules]
     Alerts[Alert Service]
+    Network[Network Aggregator]
     WS[WebSocket Manager]
     UI[React SOC Dashboard]
 
@@ -36,6 +37,9 @@ flowchart LR
     Ingest --> Events
     Events --> DB
     Events --> WS
+    Events --> Network
+    Network --> DB
+    Network --> WS
     Events --> Engine
     Rules --> Engine
     Engine --> Alerts
@@ -90,12 +94,16 @@ sequenceDiagram
     participant DB as PostgreSQL
     participant WS as WebSocketManager
     participant Engine as DetectionEngine
+    participant Network as NetworkService
     participant UI as React + TanStack Query
     Source->>Ingest: validated SecurityEventCreate
     Ingest->>Ingest: normalize and resolve asset
     Ingest->>DB: insert event + monotonic last_seen
     DB-->>Ingest: commit persistent event UUID
     Ingest->>WS: security_event
+    Ingest->>Network: aggregate eligible known-endpoint telemetry
+    Network->>DB: insert or update semantic relationship
+    Network->>WS: network_connection_updated
     Ingest->>Engine: evaluate committed event once
     Engine->>DB: query enabled candidates and bounded windows
     Engine->>DB: commit new or suppressed alert + evidence
@@ -115,6 +123,8 @@ erDiagram
     ALERT ||--o{ ALERT_EVENT : "contains evidence"
     SECURITY_EVENT ||--o{ ALERT_EVENT : "supports"
     SCENARIO_RUN ||--o{ SECURITY_EVENT : "attributes"
+    ASSET ||--o{ NETWORK_CONNECTION : "is source"
+    ASSET ||--o{ NETWORK_CONNECTION : "is destination"
 
     DETECTION_RULE {
         uuid id PK
@@ -147,6 +157,18 @@ erDiagram
         jsonb steps
         jsonb expected_detections
     }
+    NETWORK_CONNECTION {
+        uuid id PK
+        string relationship_key UK
+        uuid source_asset_id FK
+        uuid destination_asset_id FK
+        int destination_port
+        string protocol
+        string connection_type
+        timestamptz first_seen
+        timestamptz last_seen
+        int connection_count
+    }
 ```
 
 Evidence is a relational association, not an array of UUID strings. Alert detail returns compact evidence rows; original event bodies remain unchanged and are available through the event API. Asset deletion leaves historical events and alerts intact by setting optional asset foreign keys to null. Rules with alert history cannot be deleted.
@@ -169,6 +191,8 @@ The single-process engine serializes alert creation to avoid local threshold rac
 - Alert updates remove rows that no longer satisfy cached filters.
 - Dashboard and asset-detail invalidations are debounced.
 - Reconnection invalidates authoritative REST data to repair missed messages.
+- Compact relationship messages debounce-invalidate the bulk topology query; they do not synthesize frontend edges.
+- React Flow positions are deterministic by zone and hostname while topology identity and state remain backend-owned.
 - Raw JSON and rule configuration render as escaped React text, never injected HTML.
 
 ## Persistence lifecycle
@@ -176,6 +200,8 @@ The single-process engine serializes alert creation to avoid local threshold rac
 The backend container runs `alembic upgrade head`, synchronizes rules, synchronizes the five canonical lab assets, and then starts Uvicorn. Alembic is the schema mechanism; application startup never calls `create_all`. Historical synthetic seeding remains explicit. Lab service telemetry and demonstration alerts pass through the same API, normalization, persistence, WebSocket, and detection path.
 
 Scenario execution is backend-owned and persistent. WebSocket progress is advisory; browser refresh or reconnect refetches the ScenarioRun. An `active_slot` unique constraint and prerequisite query enforce one run. Startup fails stale active runs rather than resuming actions. Run summaries join attributed SecurityEvents through AlertEvent evidence to real Alerts.
+
+Network aggregation occurs after the immutable event commit and before detection evaluation. Eligible authentication, HTTP, network-connection, database-connection, and database-session telemetry must resolve both IP endpoints to stored assets; unknown or same-asset endpoints are ignored. One relationship key combines source asset, destination asset, protocol, destination port, and connection type. Counts and first/last timestamps update in place. The scenario topology does not trust global aggregate metadata for attribution: it queries only SecurityEvents carrying the selected persistent `scenario_run_id`, then joins alert evidence. `make network-rebuild` is an explicit, bounded, deterministic migration/backfill path for earlier events.
 
 Collector source readers persist byte offsets and file fingerprints in `lab_collector_state`. They advance after successful delivery or a rejected malformed record, retry API failures with bounded exponential backoff, and isolate source-reader failures from other sources. See [Corporate Lab](corporate-lab.md) for topology and operational details.
 

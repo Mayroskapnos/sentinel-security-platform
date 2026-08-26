@@ -333,3 +333,127 @@ export interface SimulatorStatus {
   active_run: ScenarioRun | null;
   message: string;
 }
+
+export type TopologyWindow = "5m" | "15m" | "1h" | "24h" | "all";
+export type ConnectionActivityState = "active" | "recent" | "historical";
+
+export interface NetworkConnectionUpdate {
+  id: string;
+  source_asset_id: string;
+  destination_asset_id: string;
+  destination_port: number | null;
+  protocol: string;
+  connection_type: string;
+  last_seen: string;
+  connection_count: number;
+  last_status: string;
+}
+
+export interface TopologyNode {
+  id: string;
+  hostname: string;
+  display_name: string;
+  ip_address: string;
+  asset_type: AssetType;
+  operating_system: string;
+  environment: string;
+  network_zone: string;
+  status: AssetStatus;
+  risk_score: number;
+  criticality: Criticality;
+  first_seen: string;
+  last_seen: string;
+  open_alert_count: number;
+  recent_event_count: number;
+  recent_connection_count: number;
+  alert_ids: string[];
+}
+
+export interface TopologyEdge {
+  id: string;
+  source_asset_id: string;
+  destination_asset_id: string;
+  source_ip: string;
+  destination_ip: string;
+  source_port: number | null;
+  destination_port: number | null;
+  protocol: string;
+  connection_type: string;
+  first_seen: string;
+  last_seen: string;
+  connection_count: number;
+  recent_event_count: number;
+  last_status: string;
+  activity_state: ConnectionActivityState;
+  alert_ids: string[];
+  scenario_run_ids: string[];
+  event_ids: string[];
+}
+
+export interface TopologyAlert {
+  id: string;
+  title: string;
+  severity: EventSeverity;
+  status: AlertStatus;
+  rule_id: string;
+  timestamp: string;
+}
+
+export interface TopologyActivity {
+  id: string;
+  timestamp: string;
+  event_type: string;
+  action: string;
+  status: string;
+  source_asset_id: string | null;
+  destination_asset_id: string | null;
+  source_ip: string | null;
+  destination_ip: string | null;
+  destination_port: number | null;
+  scenario_run_id: string | null;
+}
+
+export interface ObservedTechnique {
+  technique_id: string;
+  technique_name: string;
+  tactic: string;
+  alert_ids: string[];
+}
+
+export interface TopologyScenarioContext {
+  run_id: string;
+  scenario_id: string;
+  scenario_name: string;
+  status: ScenarioRunStatus;
+  event_count: number;
+  alert_count: number;
+  started_at: string | null;
+  finished_at: string | null;
+}
+
+export interface NetworkTopology {
+  generated_at: string;
+  window: TopologyWindow;
+  scenario: TopologyScenarioContext | null;
+  nodes: TopologyNode[];
+  edges: TopologyEdge[];
+  alerts: TopologyAlert[];
+  activities: TopologyActivity[];
+  observed_techniques: ObservedTechnique[];
+  summary: {
+    asset_count: number;
+    connection_count: number;
+    active_connection_count: number;
+    open_alert_count: number;
+    high_risk_asset_count: number;
+    activity_count: number;
+    activity_truncated: boolean;
+  };
+}
+
+export interface TopologyParameters {
+  window: TopologyWindow;
+  scenario_run_id?: string;
+  asset_id?: string;
+  alert_id?: string;
+}

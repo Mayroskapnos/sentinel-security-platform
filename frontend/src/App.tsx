@@ -57,6 +57,11 @@ const ScenarioRunPage = lazy(() =>
     default: module.ScenarioRunPage,
   })),
 );
+const AttackMapPage = lazy(() =>
+  import("./pages/AttackMapPage").then((module) => ({
+    default: module.AttackMapPage,
+  })),
+);
 
 export default function App() {
   return (
@@ -74,6 +79,7 @@ export default function App() {
           <Route element={<SystemPage />} path="/system" />
           <Route element={<SimulatorPage />} path="/simulator" />
           <Route element={<ScenarioRunPage />} path="/simulator/runs/:runId" />
+          <Route element={<AttackMapPage />} path="/attack-map" />
           <Route element={<Navigate replace to="/" />} path="*" />
         </Routes>
       </Suspense>

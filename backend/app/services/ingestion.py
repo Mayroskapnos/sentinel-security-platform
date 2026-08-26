@@ -3,10 +3,16 @@ import logging
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.realtime.manager import WebSocketManager, websocket_manager
-from app.schemas.realtime import AlertCreatedMessage, AlertUpdatedMessage, SecurityEventMessage
+from app.schemas.realtime import (
+    AlertCreatedMessage,
+    AlertUpdatedMessage,
+    NetworkConnectionUpdatedMessage,
+    SecurityEventMessage,
+)
 from app.schemas.security_event import SecurityEventCreate, SecurityEventResponse
 from app.services.detection import DetectionEngine
 from app.services.events import SecurityEventService
+from app.services.network import NetworkService
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +32,13 @@ class EventIngestionService:
     async def ingest(self, payload: SecurityEventCreate) -> SecurityEventResponse:
         event = await self.event_service.create(payload)
         await self.manager.broadcast(SecurityEventMessage(data=event))
+        try:
+            connection = await NetworkService(self.session).aggregate_event(event.id)
+            if connection:
+                await self.manager.broadcast(NetworkConnectionUpdatedMessage(data=connection))
+        except Exception:
+            await self.session.rollback()
+            logger.exception("network_aggregation_failed event_id=%s", event.id)
         try:
             results = await DetectionEngine(self.session).evaluate(event.id)
         except Exception:

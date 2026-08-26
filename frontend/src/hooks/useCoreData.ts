@@ -15,6 +15,7 @@ import {
   getEvent,
   getEvents,
   getLabStatus,
+  getNetworkTopology,
   getScenario,
   getScenarioRun,
   getScenarioRuns,
@@ -33,6 +34,7 @@ import type {
   AssetFilters,
   DetectionRuleFilters,
   EventFilters,
+  TopologyParameters,
 } from "../types/core";
 
 export const queryKeys = {
@@ -77,6 +79,11 @@ export const queryKeys = {
       ["simulator", "scenarios", scenarioId] as const,
     runs: ["simulator", "runs"] as const,
     run: (runId: string) => ["simulator", "runs", runId] as const,
+  },
+  network: {
+    all: ["network"] as const,
+    topology: (parameters: TopologyParameters) =>
+      ["network", "topology", parameters] as const,
   },
 };
 
@@ -196,6 +203,13 @@ export function useLabStatus() {
     queryKey: queryKeys.lab.status,
     queryFn: getLabStatus,
     refetchInterval: 15_000,
+  });
+}
+
+export function useNetworkTopology(parameters: TopologyParameters) {
+  return useQuery({
+    queryKey: queryKeys.network.topology(parameters),
+    queryFn: () => getNetworkTopology(parameters),
   });
 }
 

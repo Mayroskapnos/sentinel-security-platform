@@ -11,13 +11,16 @@ import type {
   DetectionRuleFilters,
   EventFilters,
   LabStatus,
+  NetworkTopology,
   Page,
   SecurityEvent,
   ScenarioDetail,
   ScenarioRun,
   ScenarioSummary,
   SimulatorStatus,
+  TopologyParameters,
 } from "../types/core";
+import { parseNetworkTopology } from "../lib/network";
 
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || "/api/v1";
 
@@ -188,4 +191,13 @@ export function getDashboardSummary(): Promise<DashboardSummary> {
 
 export function getDashboardActivity(hours = 72): Promise<DashboardActivity> {
   return request<DashboardActivity>(`/dashboard/activity?hours=${hours}`);
+}
+
+export async function getNetworkTopology(
+  parameters: TopologyParameters,
+): Promise<NetworkTopology> {
+  const response = await request<unknown>(
+    `/network/topology${queryString(parameters)}`,
+  );
+  return parseNetworkTopology(response);
 }

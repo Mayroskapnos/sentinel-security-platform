@@ -11,5 +11,6 @@ export function authoritativeRefreshQueryKeys() {
     queryKeys.dashboard.all,
     queryKeys.assets.all,
     queryKeys.simulator.all,
+    queryKeys.network.all,
   ] as const;
 }

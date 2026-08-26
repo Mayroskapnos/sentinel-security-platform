@@ -4,7 +4,7 @@
 
 SENTINEL is an experimental security monitoring and Purple Team platform for controlled environments. It provides persistent asset inventory, normalized security-event storage, deterministic detections, evidence-backed alerts, live delivery, investigation workflows, and database-backed operational dashboards.
 
-> Current status: **Milestone 5 - Controlled Attack Simulator**. Incident correlation, the Attack Map, and active response remain future milestones.
+> Current status: **Milestone 6 - Network / Attack Map**. Incident correlation and active response remain future milestones.
 
 ## What is SENTINEL?
 
@@ -34,6 +34,9 @@ SENTINEL is a portfolio-grade exploration of the architecture behind SIEM, EDR/X
 - Strict target/action registries, hard execution limits, one-run concurrency, and restart recovery
 - Explicit ScenarioRun telemetry attribution and honest expected-versus-observed detection results
 - Typed live simulator progress with REST recovery after refresh or WebSocket loss
+- Persistent, incrementally aggregated asset-to-asset network relationships
+- Backend-driven React Flow Attack Map with zone layout, live updates, filters, detail panels, and ATT&CK overlay
+- Exact ScenarioRun attack progression from explicitly attributed events, including historical runs
 - Database-side dashboard summary and aggregation queries
 - Idempotent demo seeding with five lab assets and 180 coherent historical events
 - Searchable Assets, Asset Details, Events, Alerts, Alert Detail, and Detection Rules workflows
@@ -51,6 +54,9 @@ flowchart LR
     API --> Normalizer[Event normalizer]
     Normalizer --> Service[Security event service]
     Service --> DB[(PostgreSQL 16)]
+    Service --> Topology[Network relationship aggregator]
+    Topology --> DB
+    Topology -->|compact relationship update| WS[WebSocket manager]
     Service -->|committed event| WS[WebSocket manager]
     Service --> Engine[Detection engine]
     Rules[Validated YAML and database state] --> Engine
@@ -64,13 +70,13 @@ flowchart LR
     Seed[Deterministic demo seed] --> DB
 ```
 
-PostgreSQL remains the source of truth. WebSockets provide low-latency delivery; REST refetches repair any gap after reconnection. See [Architecture](docs/architecture.md), [Corporate Lab](docs/corporate-lab.md), [Attack Simulator](docs/attack-simulator.md), [Detection Engine](docs/detection-engine.md), [Telemetry](docs/telemetry.md), [API Reference](docs/api.md), and [Security Model](docs/security-model.md).
+PostgreSQL remains the source of truth. WebSockets provide low-latency delivery; REST refetches repair any gap after reconnection. See [Architecture](docs/architecture.md), [Corporate Lab](docs/corporate-lab.md), [Attack Simulator](docs/attack-simulator.md), [Attack Map](docs/attack-map.md), [Detection Engine](docs/detection-engine.md), [Telemetry](docs/telemetry.md), [API Reference](docs/api.md), and [Security Model](docs/security-model.md).
 
 ## Technology stack
 
 | Layer | Technology |
 | --- | --- |
-| Frontend | React 19, TypeScript, Vite, Tailwind CSS, TanStack Query, React Router, Recharts |
+| Frontend | React 19, TypeScript, Vite, Tailwind CSS, TanStack Query, React Router, Recharts, React Flow |
 | Backend | Python 3.12+, FastAPI, Pydantic, SQLAlchemy 2.x, Alembic, Uvicorn |
 | Database | PostgreSQL 16 |
 | Runtime | Docker, Docker Compose, Nginx |
@@ -97,6 +103,7 @@ Open:
 - Detection rules: <http://localhost:3000/rules>
 - System and lab status: <http://localhost:3000/system>
 - Attack Simulator: <http://localhost:3000/simulator>
+- Attack Map: <http://localhost:3000/attack-map>
 - Corporate lab portal: <http://localhost:8081>
 - API health: <http://localhost:8000/api/v1/health>
 - OpenAPI: <http://localhost:8000/api/docs>
@@ -159,6 +166,18 @@ Invoke-RestMethod -Method Post http://127.0.0.1:8000/api/v1/simulator/run/SCN-00
 ```
 
 Compose enables the simulator for local development. Set `SENTINEL_SIMULATOR_ENABLED=false` elsewhere to reject new execution while retaining metadata and history. The local API has no user authentication and must not be publicly exposed. See [Attack Simulator](docs/attack-simulator.md).
+
+## Attack Map
+
+`/attack-map` renders backend-provided assets and only telemetry-observed relationships. It supports live windows, zone and investigation filters, asset/alert deep links, evidence panels, observed ATT&CK badges, and exact `?run=<scenario-run-uuid>` progression. When the lab is offline, persisted history remains inspectable without claiming live activity.
+
+New events update relationships incrementally. Existing installations can deterministically backfill the aggregate table without modifying immutable SecurityEvents:
+
+```bash
+make network-rebuild
+```
+
+See [Attack Map](docs/attack-map.md) for the identity rules, recency semantics, API contract, and limitations.
 
 ## Live telemetry
 
@@ -301,7 +320,7 @@ Published services bind to `127.0.0.1`; a hardened fixed-upstream gateway is the
 3. **Detection Engine - complete:** deterministic rules, suppression, evidence-backed alerts, live delivery, and analyst workflows
 4. **Corporate Docker Lab - complete:** isolated enterprise services, real logs, collectors, status, and detection integration
 5. **Attack Simulator - complete:** five safe allow-listed scenarios, real lab execution, persistent results, and live progress
-6. **Network Topology:** backend-driven graph
+6. **Network / Attack Map - complete:** persisted observed relationships, live topology, scenario progression, deep links, and ATT&CK overlay
 7. **Incident Correlation:** timelines and multi-stage breach scenario
 8. **MITRE ATT&CK Experience:** tactics, techniques, and attack progression
 
