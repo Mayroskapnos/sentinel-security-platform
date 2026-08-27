@@ -1,7 +1,7 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, BackgroundTasks, Depends, Query, status
+from fastapi import APIRouter, BackgroundTasks, Depends, Query, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db_session
@@ -18,6 +18,7 @@ from app.schemas.investigation import (
 from app.schemas.realtime import IncidentUpdatedMessage
 from app.services.incidents import IncidentService
 from app.services.investigations import InvestigationService, run_analysis_task
+from app.services.reporting import IncidentReportService, ReportFormat
 
 router = APIRouter(prefix="/incidents", tags=["incidents"])
 SessionDependency = Annotated[AsyncSession, Depends(get_db_session)]
@@ -47,6 +48,51 @@ async def update_incident(
         IncidentUpdatedMessage(data=IncidentListItem.model_validate(response.model_dump()))
     )
     return response
+
+
+@router.get(
+    "/{incident_id}/report",
+    response_class=Response,
+    responses={
+        status.HTTP_200_OK: {
+            "content": {
+                "text/html": {},
+                "application/pdf": {},
+            },
+            "description": "A point-in-time Incident report download.",
+        }
+    },
+    summary="Export a deterministic Incident report",
+    description=(
+        "Generate a point-in-time HTML or PDF report from authoritative Incident evidence. "
+        "The optional latest completed AI analysis is included only when explicitly requested "
+        "and remains visually separate and non-authoritative."
+    ),
+)
+async def export_incident_report(
+    incident_id: UUID,
+    session: SessionDependency,
+    report_format: Annotated[ReportFormat, Query(alias="format")] = "pdf",
+    include_ai: Annotated[bool, Query()] = False,
+) -> Response:
+    report = await IncidentReportService(session).generate(
+        incident_id,
+        report_format=report_format,
+        include_ai=include_ai,
+    )
+    return Response(
+        content=report.content,
+        media_type=report.media_type,
+        headers={
+            "Content-Disposition": f'attachment; filename="{report.filename}"',
+            "Content-Security-Policy": (
+                "default-src 'none'; style-src 'unsafe-inline'; img-src data:; "
+                "base-uri 'none'; form-action 'none'; frame-ancestors 'none'; sandbox"
+            ),
+            "X-Content-Type-Options": "nosniff",
+            "Cache-Control": "no-store",
+        },
+    )
 
 
 @router.post(

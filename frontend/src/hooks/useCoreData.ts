@@ -330,6 +330,7 @@ export function useDashboardActivity(hours = 72) {
   return useQuery({
     queryKey: queryKeys.dashboard.activity(hours),
     queryFn: () => getDashboardActivity(hours),
+    placeholderData: keepPreviousData,
   });
 }
 

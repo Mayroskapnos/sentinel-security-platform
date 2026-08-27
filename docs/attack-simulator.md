@@ -17,14 +17,14 @@ SENTINEL's Attack Simulator validates defensive controls by generating predefine
 
 ## Action registry
 
-| Action | Fixed behavior |
-| --- | --- |
-| `controlled_failed_authentication` | 1-15 bounded attempts from `employee-01` to the fixed admin SSH account; built-ins use 10 |
-| `controlled_successful_authentication` | One fixed successful SSH login from `employee-01` to `admin-server` |
-| `internal_service_discovery` | Connection attempts to exactly ten compiled service/port pairs on known lab containers |
-| `controlled_privileged_activity` | Existing `sudo /usr/bin/id` operation on `admin-server` |
-| `controlled_database_connection` | Fixed lab credentials, one connection, hard-coded `SELECT current_database()`, disconnect |
-| `wait` | Backend delay of 1-10 seconds |
+| Action                                 | Fixed behavior                                                                            |
+| -------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `controlled_failed_authentication`     | 1-15 bounded attempts from `employee-01` to the fixed admin SSH account; built-ins use 10 |
+| `controlled_successful_authentication` | One fixed successful SSH login from `employee-01` to `admin-server`                       |
+| `internal_service_discovery`           | Connection attempts to exactly ten compiled service/port pairs on known lab containers    |
+| `controlled_privileged_activity`       | Existing `sudo /usr/bin/id` operation on `admin-server`                                   |
+| `controlled_database_connection`       | Fixed lab credentials, one connection, hard-coded `SELECT current_database()`, disconnect |
+| `wait`                                 | Backend delay of 1-10 seconds                                                             |
 
 The internal broker exposes one route per action. Lab host agents likewise expose only fixed paths. No route accepts infrastructure addresses or executable text.
 
@@ -54,13 +54,13 @@ Scenario definitions cannot contain executable code. CI runs `python -m app.cli.
 
 ## Built-in scenarios
 
-| ID | Scenario | Expected rules |
-| --- | --- | --- |
-| SCN-001 | SSH Credential Activity | DET-SSH-001, DET-SSH-002 |
-| SCN-002 | Internal Service Discovery | DET-NET-001 |
-| SCN-003 | Privileged Administrative Activity | DET-PRIV-001 |
-| SCN-004 | Unexpected Workstation Database Access | DET-DB-001 |
-| SCN-005 | Multi-Stage Enterprise Security Exercise | all five rules |
+| ID      | Scenario                                 | Expected rules           |
+| ------- | ---------------------------------------- | ------------------------ |
+| SCN-001 | SSH Credential Activity                  | DET-SSH-001, DET-SSH-002 |
+| SCN-002 | Internal Service Discovery               | DET-NET-001              |
+| SCN-003 | Privileged Administrative Activity       | DET-PRIV-001             |
+| SCN-004 | Unexpected Workstation Database Access   | DET-DB-001               |
+| SCN-005 | Multi-Stage Enterprise Security Exercise | all five rules           |
 
 DET-DB-001 is intentionally ATT&CK-unmapped. Its evidence establishes a workstation database connection, not information collection.
 
@@ -84,7 +84,7 @@ Run summaries count persisted events by `scenario_run_id`. Alerts are attributed
 
 ## Expected detections
 
-Expected rules are validation goals. A run reports each as observed only when an actual persisted alert has attributed evidence. Otherwise it says “Expected but not observed” and notes that suppression or collection timing may apply. Existing five-minute rule cooldowns remain authoritative. Suppression advisories are captured at start; no alert history or suppression state is cleared.
+Expected rules are validation goals. A run reports each as observed only when an actual persisted alert has attributed evidence. While the run is pending or running, unresolved expectations stay neutral as “Awaiting observation” because lab logs may still be moving through collection, ingestion, detection, and attribution. Only after completed, failed, or cancelled status may the UI say “Expected but not observed” and note that suppression or collection timing may apply. Existing five-minute rule cooldowns remain authoritative. Suppression advisories are captured at start; no alert history or suppression state is cleared.
 
 ## Isolation
 

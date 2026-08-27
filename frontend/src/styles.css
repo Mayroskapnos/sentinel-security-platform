@@ -37,6 +37,11 @@ button:disabled {
   cursor: default;
 }
 
+:where(a, button, input, select, textarea):focus-visible {
+  outline: 2px solid #39c6a3;
+  outline-offset: 3px;
+}
+
 ::selection {
   background: rgba(57, 198, 163, 0.3);
   color: #f8fafc;

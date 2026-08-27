@@ -1,6 +1,7 @@
 import { lazy, Suspense } from "react";
-import { Navigate, Route, Routes } from "react-router-dom";
+import { Route, Routes } from "react-router-dom";
 
+import { AppErrorBoundary } from "./components/AppErrorBoundary";
 import { AppShell } from "./components/AppShell";
 import { LoadingState } from "./components/data/QueryState";
 
@@ -72,32 +73,42 @@ const AttackMapPage = lazy(() =>
     default: module.AttackMapPage,
   })),
 );
+const NotFoundPage = lazy(() =>
+  import("./pages/NotFoundPage").then((module) => ({
+    default: module.NotFoundPage,
+  })),
+);
 
 export default function App() {
   return (
-    <AppShell>
-      <Suspense fallback={<LoadingState label="Loading workspace" />}>
-        <Routes>
-          <Route element={<OverviewPage />} path="/" />
-          <Route element={<AssetsPage />} path="/assets" />
-          <Route element={<AssetDetailPage />} path="/assets/:assetId" />
-          <Route element={<EventsPage />} path="/events" />
-          <Route element={<AlertsPage />} path="/alerts" />
-          <Route element={<AlertDetailPage />} path="/alerts/:alertId" />
-          <Route element={<IncidentsPage />} path="/incidents" />
-          <Route
-            element={<IncidentDetailPage />}
-            path="/incidents/:incidentId"
-          />
-          <Route element={<RulesPage />} path="/rules" />
-          <Route element={<RuleDetailPage />} path="/rules/:ruleId" />
-          <Route element={<SystemPage />} path="/system" />
-          <Route element={<SimulatorPage />} path="/simulator" />
-          <Route element={<ScenarioRunPage />} path="/simulator/runs/:runId" />
-          <Route element={<AttackMapPage />} path="/attack-map" />
-          <Route element={<Navigate replace to="/" />} path="*" />
-        </Routes>
-      </Suspense>
-    </AppShell>
+    <AppErrorBoundary>
+      <AppShell>
+        <Suspense fallback={<LoadingState label="Loading workspace" />}>
+          <Routes>
+            <Route element={<OverviewPage />} path="/" />
+            <Route element={<AssetsPage />} path="/assets" />
+            <Route element={<AssetDetailPage />} path="/assets/:assetId" />
+            <Route element={<EventsPage />} path="/events" />
+            <Route element={<AlertsPage />} path="/alerts" />
+            <Route element={<AlertDetailPage />} path="/alerts/:alertId" />
+            <Route element={<IncidentsPage />} path="/incidents" />
+            <Route
+              element={<IncidentDetailPage />}
+              path="/incidents/:incidentId"
+            />
+            <Route element={<RulesPage />} path="/rules" />
+            <Route element={<RuleDetailPage />} path="/rules/:ruleId" />
+            <Route element={<SystemPage />} path="/system" />
+            <Route element={<SimulatorPage />} path="/simulator" />
+            <Route
+              element={<ScenarioRunPage />}
+              path="/simulator/runs/:runId"
+            />
+            <Route element={<AttackMapPage />} path="/attack-map" />
+            <Route element={<NotFoundPage />} path="*" />
+          </Routes>
+        </Suspense>
+      </AppShell>
+    </AppErrorBoundary>
   );
 }

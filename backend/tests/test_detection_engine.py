@@ -198,6 +198,7 @@ async def test_remaining_bundled_rules_trigger_deterministically(
         json=event_payload(
             timestamp=start,
             event_type="database_connection",
+            source="database_client",
             action="database_connect",
             status="success",
             source_ip="10.10.20.10",
@@ -212,6 +213,45 @@ async def test_remaining_bundled_rules_trigger_deterministically(
         "DET-PRIV-001",
         "DET-DB-001",
     }
+
+
+@pytest.mark.asyncio
+async def test_database_rule_waits_for_workstation_client_evidence(
+    client: httpx.AsyncClient,
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    await sync_rules(session_factory)
+    await create_asset(client, hostname="employee-01", ip_address="10.10.20.10")
+    await create_asset(
+        client,
+        hostname="database-01",
+        ip_address="10.10.30.20",
+        mac_address="02:42:0a:0a:14:33",
+        asset_type="database",
+        network_zone="data",
+    )
+    values = {
+        "event_type": "database_connection",
+        "action": "database_connect",
+        "status": "success",
+        "source_ip": "10.10.20.10",
+        "destination_ip": "10.10.30.20",
+        "username": "lab_app",
+    }
+
+    native = await client.post(
+        "/api/v1/events",
+        json=event_payload(source="postgresql", hostname="database-01", **values),
+    )
+    assert native.status_code == 201
+    assert (await client.get("/api/v1/alerts?rule_id=DET-DB-001")).json()["total"] == 0
+
+    client_observation = await client.post(
+        "/api/v1/events",
+        json=event_payload(source="database_client", hostname="employee-01", **values),
+    )
+    assert client_observation.status_code == 201
+    assert (await client.get("/api/v1/alerts?rule_id=DET-DB-001")).json()["total"] == 1
 
 
 @pytest.mark.asyncio

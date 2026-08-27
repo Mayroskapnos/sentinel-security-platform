@@ -197,6 +197,12 @@ Returns one efficient Incident document with Alert references, affected Assets, 
 
 Updates `status` and/or nullable `assigned_to`. Status transitions are validated across `open`, `investigating`, `contained`, `resolved`, and `false_positive`. Normal Incident deletion, arbitrary public correlation, merge, split, and Alert removal are intentionally absent.
 
+### `GET /api/v1/incidents/{incident_id}/report`
+
+Downloads a point-in-time Incident report. Query `format` accepts `pdf` (default) or `html`; `include_ai` is a strict boolean and defaults to `false`. Both formats use one server-built authoritative Incident context. AI never supplies core facts and, when explicitly included, only the latest completed analysis appears in a separate non-authoritative section with its current/outdated state.
+
+The response is an attachment with a server-generated Incident-number filename, `no-store`, `nosniff`, and a restrictive Content Security Policy. HTML is escaped, static, and contains no JavaScript or external resources. A path Incident mismatch/not-found uses the existing structured `404`; renderer/configuration failures use the existing structured application error handling rather than returning a partial artifact. See [Incident Reporting](reporting.md).
+
 ## Investigation Assistant
 
 All assistant endpoints accept only an existing Incident UUID; callers cannot supply logs or arbitrary provider context.

@@ -234,3 +234,19 @@ flowchart LR
 ```
 
 The provider has no direct database access. The context builder creates the only evidence package, redacts and bounds raw excerpts, and stores a stable context hash. The provider cannot change Incident state. Validated results and bounded Q&A persist in PostgreSQL; WebSocket messages prompt REST recovery. See [Investigation Assistant](investigation-assistant.md).
+
+## Incident reporting architecture
+
+```mermaid
+flowchart LR
+    Incident[(Incident and relational evidence)] --> Builder[Report Context Builder]
+    Relationships[(Story-referenced relationships)] --> Builder
+    Analysis[(Latest completed analysis)] -. explicit opt-in .-> Builder
+    Builder --> Snapshot[Typed point-in-time context]
+    Snapshot --> HTML[Escaped static HTML]
+    Snapshot --> PDF[ReportLab PDF]
+    HTML --> Download[Attachment response]
+    PDF --> Download
+```
+
+The builder calls the authoritative Incident service and queries only network relationships whose IDs appear in persisted story evidence. Both renderers consume the same typed snapshot and generate bytes in memory; the server does not retain exports. AI is optional and cannot replace deterministic fields. Report generation is synchronous because current Incident sizes are bounded; a larger deployment would move exports to a durable job queue.

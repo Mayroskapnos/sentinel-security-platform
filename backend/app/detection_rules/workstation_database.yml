@@ -6,6 +6,7 @@ severity: medium
 enabled: true
 match:
   event_type: database_connection
+  source: database_client
 group_by: [source_ip, destination_ip, username]
 context:
   source_asset_type: workstation

@@ -34,6 +34,8 @@ import { parseNetworkTopology } from "../lib/network";
 
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || "/api/v1";
 
+export type IncidentReportFormat = "html" | "pdf";
+
 interface StructuredApiError {
   error?: {
     code?: string;
@@ -182,6 +184,16 @@ export function getIncidents(
 
 export function getIncident(incidentId: string): Promise<IncidentDetail> {
   return request<IncidentDetail>(`/incidents/${incidentId}`);
+}
+
+export function getIncidentReportUrl(
+  incidentId: string,
+  format: IncidentReportFormat,
+  includeAi = false,
+): string {
+  return `${apiBaseUrl}/incidents/${encodeURIComponent(incidentId)}/report${queryString(
+    { format, include_ai: includeAi },
+  )}`;
 }
 
 export function updateIncident(

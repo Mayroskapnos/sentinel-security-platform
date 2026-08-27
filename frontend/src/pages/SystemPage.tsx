@@ -116,7 +116,44 @@ export function SystemPage() {
         title="System"
       />
 
-      <section className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-6">
+      <section className="mt-8 grid gap-3 rounded-xl border border-line bg-panel p-5 shadow-panel sm:grid-cols-2 xl:grid-cols-4">
+        <div>
+          <p className="text-[10px] uppercase tracking-wider text-muted">
+            Release
+          </p>
+          <p className="mt-2 font-mono text-sm text-slate-100">
+            SENTINEL v{health.data.version}
+          </p>
+        </div>
+        <div>
+          <p className="text-[10px] uppercase tracking-wider text-muted">
+            Environment
+          </p>
+          <p className="mt-2 font-mono text-sm text-slate-100">
+            {health.data.environment}
+          </p>
+        </div>
+        <div>
+          <p className="text-[10px] uppercase tracking-wider text-muted">
+            Build SHA
+          </p>
+          <p className="mt-2 font-mono text-sm text-slate-100">
+            {health.data.build_sha?.slice(0, 12) ?? "Not supplied"}
+          </p>
+        </div>
+        <div>
+          <p className="text-[10px] uppercase tracking-wider text-muted">
+            Build time
+          </p>
+          <p className="mt-2 font-mono text-sm text-slate-100">
+            {health.data.build_time
+              ? formatDateTime(health.data.build_time)
+              : "Not supplied"}
+          </p>
+        </div>
+      </section>
+
+      <section className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-6">
         {platformRows.map(({ detail, icon: Icon, label, state }) => (
           <article
             className="rounded-xl border border-line bg-panel p-5 shadow-panel"
