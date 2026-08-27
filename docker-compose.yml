@@ -104,6 +104,7 @@ services:
       - sentinel_management
 
   frontend:
+    container_name: sentinel
     build:
       context: ./frontend
       args:

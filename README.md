@@ -161,6 +161,8 @@ The local mock sends no data externally. Configured OpenAI use sends selected re
 
 Requirements: Docker with Compose v2, Git, approximately 4 GB free memory, and loopback ports `3000`, `8000`, `5432`, and `8081` (or customize them).
 
+For a complete clone-to-demo walkthrough, see [How to Run SENTINEL](HowToRunMe.md).
+
 ```bash
 git clone https://github.com/Mayroskapnos/sentinel-security-platform.git
 cd sentinel-security-platform
