@@ -1,6 +1,6 @@
 # SENTINEL Architecture
 
-This document describes the implemented Milestone 7 architecture. AI investigation assistance, active response, and general offensive workflows are not operational components.
+This document describes the implemented Milestone 8 architecture. Optional AI investigation assistance is an evidence-grounded layer; active response and general offensive workflows are not operational components.
 
 ## Runtime topology
 
@@ -216,3 +216,21 @@ After each authoritative Alert commit and Alert WebSocket message, the Correlati
 The incident topology performs an exact AlertEvent join and never constructs relationships from story text. ScenarioRun remains an execution record; Incident remains a security-evidence inference.
 
 The WebSocket manager is process-local because Compose runs one backend instance. Multi-instance delivery requires shared pub/sub, and concurrent multi-instance suppression and correlation require stronger database coordination. These are documented limits rather than hidden production claims.
+
+## Investigation Assistant architecture
+
+```mermaid
+flowchart LR
+    Events[SecurityEvents] --> Alerts[Alerts]
+    Alerts --> Correlation[Correlation Engine]
+    Correlation --> Incident[Incident]
+    Incident --> Story[Deterministic Story]
+    Incident --> Context[Bounded Context Builder]
+    Story --> Context
+    Context --> Provider[Optional AI Provider]
+    Provider --> Validation[Schema and Grounding Validation]
+    Validation --> Analysis[Persisted Investigation Analysis]
+    Analysis --> UI[Incident Detail UI]
+```
+
+The provider has no direct database access. The context builder creates the only evidence package, redacts and bounds raw excerpts, and stores a stable context hash. The provider cannot change Incident state. Validated results and bounded Q&A persist in PostgreSQL; WebSocket messages prompt REST recovery. See [Investigation Assistant](investigation-assistant.md).

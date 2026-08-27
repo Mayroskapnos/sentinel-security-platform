@@ -4,7 +4,7 @@
 
 SENTINEL is an experimental security monitoring and Purple Team platform for controlled environments. It provides persistent asset inventory, normalized security-event storage, deterministic detections, evidence-backed alerts, live delivery, investigation workflows, and database-backed operational dashboards.
 
-> Current status: **Milestone 7 - Incident Correlation & Attack Story Reconstruction**. Investigation assistance and active response remain future milestones.
+> Current status: **Milestone 8 - Investigation Assistant / AI Incident Analysis**. The assistant is optional, evidence-grounded, and analysis-only; active response is not implemented.
 
 ## What is SENTINEL?
 
@@ -40,6 +40,9 @@ SENTINEL is a portfolio-grade exploration of the architecture behind SIEM, EDR/X
 - Persistent Incidents with deterministic multi-alert correlation and stored explanations
 - Evidence-backed chronological attack-story reconstruction with conservative language
 - Incident queue/detail workflows, live updates, lifecycle state, and incident-scoped Attack Map
+- Optional evidence-grounded Incident summaries, uncertainty reporting, evidence-linked recommendations, and bounded Incident Q&A
+- Disabled-by-default provider abstraction with a deterministic local mock and configured OpenAI Responses API adapter
+- Persistent versioned analysis history with context-hash staleness, safe failure isolation, and typed live completion updates
 - Database-side dashboard summary and aggregation queries
 - Idempotent demo seeding with five lab assets and 180 coherent historical events
 - Searchable Assets, Asset Details, Events, Alerts, Alert Detail, and Detection Rules workflows
@@ -70,6 +73,10 @@ flowchart LR
     Correlation --> Incidents[Incident and attack story]
     Incidents --> DB
     Incidents -->|committed incident| WS
+    Incidents --> Context[Bounded redacted investigation context]
+    Context --> Assistant[Optional AI provider]
+    Assistant --> Grounding[Schema and evidence grounding]
+    Grounding --> DB
     WS --> Proxy[Nginx]
     Proxy --> UI[React dashboard]
     UI -->|authoritative REST queries| Proxy
@@ -77,7 +84,7 @@ flowchart LR
     Seed[Deterministic demo seed] --> DB
 ```
 
-PostgreSQL remains the source of truth. WebSockets provide low-latency delivery; REST refetches repair any gap after reconnection. See [Architecture](docs/architecture.md), [Incident Correlation](docs/incident-correlation.md), [Corporate Lab](docs/corporate-lab.md), [Attack Simulator](docs/attack-simulator.md), [Attack Map](docs/attack-map.md), [Detection Engine](docs/detection-engine.md), [Telemetry](docs/telemetry.md), [API Reference](docs/api.md), and [Security Model](docs/security-model.md).
+PostgreSQL and the deterministic security engine remain the source of truth. The optional AI assistant is an explanation and investigation aid, never a detector or correlation authority. WebSockets provide low-latency delivery; REST refetches repair any gap after reconnection. See [Architecture](docs/architecture.md), [Incident Correlation](docs/incident-correlation.md), [Investigation Assistant](docs/investigation-assistant.md), [Corporate Lab](docs/corporate-lab.md), [Attack Simulator](docs/attack-simulator.md), [Attack Map](docs/attack-map.md), [Detection Engine](docs/detection-engine.md), [Telemetry](docs/telemetry.md), [API Reference](docs/api.md), and [Security Model](docs/security-model.md).
 
 ## Technology stack
 
@@ -201,6 +208,20 @@ make scenario-run SCENARIO=SCN-005
 
 Then open the completed ScenarioRun, its correlated Incident, and **View Incident on Attack Map**. Historical Alerts that predate Milestone 7 can be associated non-destructively with `make incident-rebuild`. See [Incident Correlation](docs/incident-correlation.md).
 
+## Investigation Assistant
+
+Incident Detail retains the deterministic story as the primary evidence view and adds an optional, visually distinct Investigation Assistant beneath it. Generation is always user-triggered. Completed output cites actual SENTINEL evidence, reports uncertainty, recommends defensive analyst review only, and becomes visibly outdated when Incident evidence changes.
+
+AI is disabled by default. For a local no-network demonstration:
+
+```text
+SENTINEL_AI_ENABLED=true
+SENTINEL_AI_PROVIDER=mock
+SENTINEL_AI_MODEL=sentinel-mock-v1
+```
+
+The mock provider is clearly labeled and never sends data externally. A configured `openai` provider sends selected bounded and redacted Incident evidence to that external provider; its key belongs only in an untracked `.env`. Provider timeout or failure affects only the analysis record, never the Incident or core health. See [Investigation Assistant](docs/investigation-assistant.md) for configuration, privacy, grounding, prompt-injection defenses, and limitations.
+
 ## Live telemetry
 
 The development producer exercises the complete live path:
@@ -314,6 +335,7 @@ ruff check . ../tools ../lab
 ruff format --check . ../tools ../lab
 python -m app.cli.validate_scenarios
 python -m app.cli.validate_correlation
+python -m app.cli.validate_ai
 pytest
 alembic check
 
@@ -345,7 +367,7 @@ Published services bind to `127.0.0.1`; a hardened fixed-upstream gateway is the
 5. **Attack Simulator - complete:** five safe allow-listed scenarios, real lab execution, persistent results, and live progress
 6. **Network / Attack Map - complete:** persisted observed relationships, live topology, scenario progression, deep links, and ATT&CK overlay
 7. **Incident Correlation - complete:** persistent explainable correlation, evidence-backed attack stories, lifecycle UI, live updates, and incident topology
-8. **Investigation Assistant / AI Incident Analysis:** analyst-guided incident analysis without automated response
+8. **Investigation Assistant / AI Incident Analysis - complete:** optional evidence-grounded summaries, persistent bounded Q&A, uncertainty, citations, staleness, and no automated response
 
 ## Project motivation
 

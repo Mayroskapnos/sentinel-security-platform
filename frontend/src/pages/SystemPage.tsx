@@ -1,5 +1,6 @@
 import {
   Activity,
+  BrainCircuit,
   Crosshair,
   Database,
   Radio,
@@ -13,6 +14,7 @@ import { PageHeading } from "../components/data/PageHeading";
 import { ErrorState, LoadingState } from "../components/data/QueryState";
 import { useHealth } from "../hooks/useHealth";
 import {
+  useAssistantStatus,
   useDashboardSummary,
   useLabStatus,
   useSimulatorStatus,
@@ -26,6 +28,7 @@ export function SystemPage() {
   const simulator = useSimulatorStatus();
   const telemetry = useTelemetry();
   const dashboard = useDashboardSummary();
+  const assistant = useAssistantStatus();
 
   if (
     health.isLoading ||
@@ -90,6 +93,14 @@ export function SystemPage() {
           : "unavailable",
       icon: ShieldCheck,
     },
+    {
+      label: "Investigation Assistant",
+      detail: assistant.data
+        ? `${humanize(assistant.data.mode)} · ${assistant.data.provider_label}${assistant.data.model ? ` · ${assistant.data.model}` : ""}`
+        : "Optional assistant status unavailable",
+      state: assistant.data?.enabled ? "active" : "unavailable",
+      icon: BrainCircuit,
+    },
   ];
 
   return (
@@ -105,7 +116,7 @@ export function SystemPage() {
         title="System"
       />
 
-      <section className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+      <section className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-6">
         {platformRows.map(({ detail, icon: Icon, label, state }) => (
           <article
             className="rounded-xl border border-line bg-panel p-5 shadow-panel"

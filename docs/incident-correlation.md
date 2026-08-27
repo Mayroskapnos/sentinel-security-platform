@@ -82,3 +82,7 @@ A ScenarioRun answers what controlled test executed. An Incident answers what SE
 - Candidate and evidence reads are bounded; metadata reports evidence truncation where applicable.
 - Process locks and WebSockets are single-instance facilities; PostgreSQL constraints protect membership but do not provide a distributed work queue.
 - Correlation cannot establish attacker intent, compromise, data collection, or causality beyond the persisted signals it reports.
+
+## Relationship to the Investigation Assistant
+
+AI does not participate in Alert evaluation, Incident membership, correlation scoring, derived severity/risk, story reconstruction, or authoritative ATT&CK aggregation. The optional assistant runs only after an Incident exists and receives the persisted deterministic result as bounded evidence. Stale assistant output never changes or overrides current Incident evidence. See [Investigation Assistant](investigation-assistant.md).

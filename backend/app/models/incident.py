@@ -112,3 +112,9 @@ class Incident(Base):
         back_populates="incident", cascade="all, delete-orphan", lazy="raise"
     )
     scenario_run: Mapped["ScenarioRun | None"] = relationship()  # noqa: F821
+    analyses: Mapped[list["InvestigationAnalysis"]] = relationship(  # noqa: F821
+        back_populates="incident", passive_deletes=True, lazy="raise"
+    )
+    investigation_messages: Mapped[list["InvestigationMessage"]] = relationship(  # noqa: F821
+        back_populates="incident", passive_deletes=True, lazy="raise"
+    )

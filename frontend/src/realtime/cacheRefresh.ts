@@ -13,5 +13,6 @@ export function authoritativeRefreshQueryKeys() {
     queryKeys.assets.all,
     queryKeys.simulator.all,
     queryKeys.network.all,
+    queryKeys.investigation.all,
   ] as const;
 }

@@ -45,6 +45,7 @@ jobs:
       - run: ruff format --check . ../tools ../lab
       - run: python -m app.cli.validate_scenarios
       - run: python -m app.cli.validate_correlation
+      - run: python -m app.cli.validate_ai
       - run: pytest
       - run: alembic upgrade head
       - run: alembic check

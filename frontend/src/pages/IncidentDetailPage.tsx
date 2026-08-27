@@ -14,6 +14,7 @@ import {
   SeverityBadge,
 } from "../components/data/Badge";
 import { ErrorState, LoadingState } from "../components/data/QueryState";
+import { InvestigationAssistant } from "../components/investigation/InvestigationAssistant";
 import { useIncident, useUpdateIncident } from "../hooks/useCoreData";
 import { formatDateTime, humanize } from "../lib/format";
 import { incidentConfidenceLabel } from "../lib/incidents";
@@ -342,6 +343,8 @@ export function IncidentDetailPage() {
           </table>
         </div>
       </section>
+
+      <InvestigationAssistant incidentId={incident.id} />
 
       {incident.scenario ? (
         <section className="mt-6 rounded-xl border border-accent/20 bg-accent/[0.04] p-5">

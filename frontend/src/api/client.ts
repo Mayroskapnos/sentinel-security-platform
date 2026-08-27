@@ -1,5 +1,11 @@
 import type { HealthResponse } from "../types/health";
 import type {
+  AssistantStatus,
+  InvestigationAnalysis,
+  InvestigationMessage,
+  InvestigationQuestionResponse,
+} from "../types/investigation";
+import type {
   Alert,
   AlertDetail,
   AlertFilters,
@@ -187,6 +193,48 @@ export function updateIncident(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(changes),
   });
+}
+
+export function getAssistantStatus(): Promise<AssistantStatus> {
+  return request<AssistantStatus>("/assistant/status");
+}
+
+export function getLatestInvestigationAnalysis(
+  incidentId: string,
+): Promise<InvestigationAnalysis | null> {
+  return request<InvestigationAnalysis | null>(
+    `/incidents/${incidentId}/analysis`,
+  );
+}
+
+export function generateInvestigationAnalysis(
+  incidentId: string,
+): Promise<InvestigationAnalysis> {
+  return request<InvestigationAnalysis>(`/incidents/${incidentId}/analysis`, {
+    method: "POST",
+  });
+}
+
+export function getInvestigationMessages(
+  incidentId: string,
+): Promise<InvestigationMessage[]> {
+  return request<InvestigationMessage[]>(
+    `/incidents/${incidentId}/assistant/messages?limit=20`,
+  );
+}
+
+export function askInvestigationQuestion(
+  incidentId: string,
+  question: string,
+): Promise<InvestigationQuestionResponse> {
+  return request<InvestigationQuestionResponse>(
+    `/incidents/${incidentId}/assistant/questions`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ question }),
+    },
+  );
 }
 
 export function getRules(

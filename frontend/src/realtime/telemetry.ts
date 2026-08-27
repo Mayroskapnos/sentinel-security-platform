@@ -85,6 +85,17 @@ export interface SimulationMessage {
   };
 }
 
+export interface AnalysisMessage {
+  version: "1";
+  type: "analysis_started" | "analysis_completed" | "analysis_failed";
+  timestamp: string;
+  data: {
+    analysis_id: string;
+    incident_id: string;
+    status: "running" | "completed" | "failed";
+  };
+}
+
 export type TelemetryMessage =
   | SecurityEventMessage
   | TelemetryStatusMessage
@@ -93,7 +104,8 @@ export type TelemetryMessage =
   | IncidentCreatedMessage
   | IncidentUpdatedMessage
   | NetworkConnectionUpdatedMessage
-  | SimulationMessage;
+  | SimulationMessage
+  | AnalysisMessage;
 
 const severities = new Set<EventSeverity>([
   "informational",
@@ -301,6 +313,16 @@ export function parseTelemetryMessage(raw: string): TelemetryMessage | null {
     isNullableString(parsed.data.message)
   ) {
     return parsed as unknown as SimulationMessage;
+  }
+  if (
+    ["analysis_started", "analysis_completed", "analysis_failed"].includes(
+      String(parsed.type),
+    ) &&
+    typeof parsed.data.analysis_id === "string" &&
+    typeof parsed.data.incident_id === "string" &&
+    ["running", "completed", "failed"].includes(String(parsed.data.status))
+  ) {
+    return parsed as unknown as AnalysisMessage;
   }
   return null;
 }

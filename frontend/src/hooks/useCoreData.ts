@@ -7,6 +7,7 @@ import {
 
 import {
   getAlert,
+  askInvestigationQuestion,
   getAlerts,
   getAsset,
   getAssets,
@@ -14,6 +15,10 @@ import {
   getDashboardSummary,
   getEvent,
   getEvents,
+  generateInvestigationAnalysis,
+  getAssistantStatus,
+  getInvestigationMessages,
+  getLatestInvestigationAnalysis,
   getLabStatus,
   getIncident,
   getIncidents,
@@ -96,6 +101,16 @@ export const queryKeys = {
     all: ["network"] as const,
     topology: (parameters: TopologyParameters) =>
       ["network", "topology", parameters] as const,
+  },
+  investigation: {
+    all: ["investigation"] as const,
+    status: ["investigation", "status"] as const,
+    incident: (incidentId: string) =>
+      ["investigation", "incident", incidentId] as const,
+    latest: (incidentId: string) =>
+      ["investigation", "incident", incidentId, "latest"] as const,
+    messages: (incidentId: string) =>
+      ["investigation", "incident", incidentId, "messages"] as const,
   },
 };
 
@@ -205,6 +220,73 @@ export function useUpdateIncident() {
       void queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.all });
       void queryClient.invalidateQueries({ queryKey: queryKeys.alerts.all });
       void queryClient.invalidateQueries({ queryKey: queryKeys.assets.all });
+    },
+  });
+}
+
+export function useAssistantStatus() {
+  return useQuery({
+    queryKey: queryKeys.investigation.status,
+    queryFn: getAssistantStatus,
+    staleTime: 60_000,
+  });
+}
+
+export function useLatestInvestigationAnalysis(
+  incidentId: string | undefined,
+  enabled = true,
+) {
+  return useQuery({
+    queryKey: queryKeys.investigation.latest(incidentId ?? ""),
+    queryFn: () => getLatestInvestigationAnalysis(incidentId!),
+    enabled: Boolean(incidentId) && enabled,
+    refetchInterval: (query) =>
+      ["pending", "running"].includes(query.state.data?.status ?? "")
+        ? 1_500
+        : false,
+  });
+}
+
+export function useGenerateInvestigationAnalysis() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: generateInvestigationAnalysis,
+    onSuccess: (analysis) => {
+      queryClient.setQueryData(
+        queryKeys.investigation.latest(analysis.incident_id),
+        analysis,
+      );
+    },
+  });
+}
+
+export function useInvestigationMessages(
+  incidentId: string | undefined,
+  enabled = true,
+) {
+  return useQuery({
+    queryKey: queryKeys.investigation.messages(incidentId ?? ""),
+    queryFn: () => getInvestigationMessages(incidentId!),
+    enabled: Boolean(incidentId) && enabled,
+  });
+}
+
+export function useAskInvestigationQuestion() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      incidentId,
+      question,
+    }: {
+      incidentId: string;
+      question: string;
+    }) => askInvestigationQuestion(incidentId, question),
+    onSuccess: (response) => {
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.investigation.messages(
+          response.question.incident_id,
+        ),
+      });
     },
   });
 }

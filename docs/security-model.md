@@ -41,6 +41,20 @@ The corporate lab does not contain deliberately vulnerable services, exploitatio
 
 The normal local UI/API still lacks user authentication. Loopback binding is not authorization; do not expose the simulator through a public or shared unauthenticated ingress.
 
+## Investigation Assistant trust boundary
+
+- AI is optional and disabled by default. Missing or unavailable AI never degrades core health, telemetry, detection, Alerts, correlation, Incidents, the simulator, or the Attack Map.
+- A provider receives only a deterministic, bounded Incident snapshot. It has no database access and cannot accept caller-supplied external context.
+- Telemetry, logs, analyst questions, and prior assistant text are untrusted data. Provider system instructions explicitly prohibit following evidence content, and prompts keep instructions separate from labeled untrusted evidence.
+- Recursive redaction removes recognized password, token, API-key, Authorization, cookie, secret, and credential values before provider access. Event excerpts and Q&A history are length-bounded.
+- Provider output is untrusted. Pydantic validation, evidence-reference membership, authoritative ATT&CK checks, deterministic count checks, conservative-claim checks, and text sanitization run before persistence/display.
+- The assistant cannot mutate Alerts, Incidents, risk, correlation, workflow state, rules, Assets, or ScenarioRuns. It has no tool or execution interface and cannot contain, block, scan, isolate, disable, reset, or run commands.
+- The mock provider is local. A configured external provider is a separate privacy and retention boundary; selected redacted Incident evidence leaves SENTINEL. The UI discloses this and never displays an API key.
+- Provider credentials and Authorization headers are not logged or persisted. Operational logs contain IDs, provider/model names, duration, status, and safe error categories only.
+- Timeout, provider, validation, and restart failures affect only the analysis record. Failed provider calls are not automatically retried.
+
+Redaction cannot recognize every sensitive value, and natural-language grounding cannot prove all claims. External-provider use requires operator review. See [Investigation Assistant](investigation-assistant.md).
+
 ## Development credentials
 
 Values in `.env.example` are local development defaults, not production secrets. Change them for shared environments. Event ingestion supports an optional `X-Sentinel-Collector-Key` shared key and simulator control uses the separate `X-Sentinel-Simulation-Key`; Compose enables both for the local lab. These are lightweight local trust boundaries, not replacements for TLS, per-agent identity, key rotation, or production authorization. JWT settings remain reserved and unused.

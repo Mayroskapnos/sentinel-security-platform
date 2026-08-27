@@ -2,6 +2,7 @@ from fastapi import APIRouter
 
 from app.api.v1.routes.alerts import router as alerts_router
 from app.api.v1.routes.assets import router as assets_router
+from app.api.v1.routes.assistant import router as assistant_router
 from app.api.v1.routes.dashboard import router as dashboard_router
 from app.api.v1.routes.detection_rules import router as detection_rules_router
 from app.api.v1.routes.events import router as events_router
@@ -15,6 +16,7 @@ from app.api.v1.routes.websockets import router as websockets_router
 
 api_router = APIRouter()
 api_router.include_router(health_router)
+api_router.include_router(assistant_router)
 api_router.include_router(lab_router)
 api_router.include_router(network_router)
 api_router.include_router(simulator_router)

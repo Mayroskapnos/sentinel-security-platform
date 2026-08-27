@@ -255,12 +255,23 @@ export function TelemetryProvider({ children }: { children: ReactNode }) {
           void queryClient.invalidateQueries({
             queryKey: queryKeys.assets.all,
           });
+          void queryClient.invalidateQueries({
+            queryKey: queryKeys.investigation.incident(parsed.data.id),
+          });
           scheduleNetworkRefresh();
         } else if (parsed?.type.startsWith("simulation_")) {
           void queryClient.invalidateQueries({
             queryKey: queryKeys.simulator.all,
           });
           scheduleNetworkRefresh();
+        } else if (
+          parsed?.type === "analysis_started" ||
+          parsed?.type === "analysis_completed" ||
+          parsed?.type === "analysis_failed"
+        ) {
+          void queryClient.invalidateQueries({
+            queryKey: queryKeys.investigation.incident(parsed.data.incident_id),
+          });
         }
       };
       socket.onerror = () => setConnectionState("error");

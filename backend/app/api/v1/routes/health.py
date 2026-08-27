@@ -6,6 +6,7 @@ from fastapi.responses import JSONResponse
 from app.core.config import get_settings
 from app.correlation.config import validate_correlation_config
 from app.db.session import check_database
+from app.investigation.config import assistant_configuration
 from app.schemas.health import ComponentHealth, HealthResponse
 
 router = APIRouter(tags=["health"])
@@ -42,6 +43,9 @@ async def health_check() -> HealthResponse | JSONResponse:
             ),
             "correlation_engine": ComponentHealth(
                 status="healthy" if correlation_healthy else "unavailable"
+            ),
+            "investigation_assistant": ComponentHealth(
+                status=("healthy" if assistant_configuration(settings).enabled else "unavailable")
             ),
         },
     )

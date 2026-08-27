@@ -198,6 +198,28 @@ describe("telemetry message parsing", () => {
     );
     expect(parsed?.type).toBe("incident_created");
   });
+
+  it("accepts analysis completion messages for REST recovery", () => {
+    const parsed = parseTelemetryMessage(
+      JSON.stringify({
+        version: "1",
+        type: "analysis_completed",
+        timestamp: "2026-08-26T10:00:02Z",
+        data: {
+          analysis_id: "44444444-4444-4444-4444-444444444444",
+          incident_id: "11111111-1111-1111-1111-111111111111",
+          status: "completed",
+        },
+      }),
+    );
+    expect(parsed?.type).toBe("analysis_completed");
+    if (parsed?.type !== "analysis_completed") {
+      throw new Error("Expected analysis_completed message");
+    }
+    expect(parsed.data.incident_id).toBe(
+      "11111111-1111-1111-1111-111111111111",
+    );
+  });
 });
 
 describe("live event cache behavior", () => {

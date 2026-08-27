@@ -35,6 +35,12 @@ Validation failures use `VALIDATION_ERROR` with field details. IDs are UUIDs and
 
 Checks the API process and PostgreSQL with `SELECT 1`. Returns `503` with `status: degraded` when the database is unavailable.
 
+The optional `investigation_assistant` check is reported independently. Disabled or unavailable AI does not make core health degraded.
+
+### `GET /api/v1/assistant/status`
+
+Returns disabled, mock, configured, or unavailable assistant state plus safe provider/model labels and an external-provider flag. It never returns credentials or contacts the provider.
+
 ## Assets
 
 ### `GET /api/v1/assets`
@@ -191,6 +197,34 @@ Returns one efficient Incident document with Alert references, affected Assets, 
 
 Updates `status` and/or nullable `assigned_to`. Status transitions are validated across `open`, `investigating`, `contained`, `resolved`, and `false_positive`. Normal Incident deletion, arbitrary public correlation, merge, split, and Alert removal are intentionally absent.
 
+## Investigation Assistant
+
+All assistant endpoints accept only an existing Incident UUID; callers cannot supply logs or arbitrary provider context.
+
+### `POST /api/v1/incidents/{incident_id}/analysis`
+
+Creates a persistent pending analysis from a bounded server-built evidence snapshot and returns `202`. The provider call runs in a background task. Only one pending/running analysis is permitted per Incident; a duplicate returns `409 ANALYSIS_ALREADY_RUNNING`. Disabled or invalid configuration returns a structured `503`.
+
+### `GET /api/v1/incidents/{incident_id}/analysis`
+
+Returns the latest analysis or `null`. `is_stale` is derived by comparing its stored context hash with current authoritative Incident evidence.
+
+### `GET /api/v1/incidents/{incident_id}/analysis/{analysis_id}`
+
+Returns one persisted analysis only when it belongs to the path Incident.
+
+### `GET /api/v1/incidents/{incident_id}/analyses`
+
+Returns bounded analysis history with `page` and `page_size` (maximum 100). No delete endpoint is provided.
+
+### `GET /api/v1/incidents/{incident_id}/assistant/messages`
+
+Returns up to 50 persisted Incident-bound analyst/assistant messages; the UI requests the most recent 20.
+
+### `POST /api/v1/incidents/{incident_id}/assistant/questions`
+
+Accepts only `{"question": "..."}` with a nonblank 500-character maximum. The answer cites evidence from current Incident context. It cannot execute actions or access unrelated/external context.
+
 ## Detection rules
 
 ### `GET /api/v1/rules`
@@ -267,4 +301,4 @@ Cancels future execution of an active backend-owned run. No request body is acce
 
 ## Deployment warning
 
-AI investigation assistance and active response are not implemented. The local shared keys are not production authentication. Production use requires user authorization, TLS, independently authenticated services, key rotation, durable queuing, retention controls, and cross-instance pub/sub.
+Optional AI investigation assistance is analysis-only; active response is not implemented. The local shared keys are not production authentication. Production use requires user authorization, TLS, independently authenticated services, key rotation, durable queuing, retention controls, external-provider privacy review, and cross-instance pub/sub.

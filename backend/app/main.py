@@ -15,6 +15,7 @@ from app.core.errors import AppError
 from app.core.logging import configure_logging
 from app.db.session import async_session_factory, close_database
 from app.realtime.manager import websocket_manager
+from app.services.investigations import InvestigationService
 from app.services.simulator import scenario_orchestrator
 
 settings = get_settings()
@@ -30,6 +31,12 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
             recovered = await scenario_orchestrator.recover_stale(session)
             if recovered:
                 logger.warning("stale_scenario_runs_failed count=%d", recovered)
+            recovered_analyses = await InvestigationService.recover_interrupted(session)
+            if recovered_analyses:
+                logger.warning(
+                    "interrupted_investigation_analyses_failed count=%d",
+                    recovered_analyses,
+                )
     except SQLAlchemyError:
         # Migration commands run before uvicorn in the container. This guard keeps
         # isolated API/WebSocket tests usable when their external DB is intentionally absent.

@@ -68,6 +68,40 @@ class IncidentUpdatedMessage(BaseModel):
     data: IncidentListItem
 
 
+class AnalysisEventData(BaseModel):
+    analysis_id: UUID
+    incident_id: UUID
+    status: Literal["running", "completed", "failed"]
+
+
+class _AnalysisMessage(BaseModel):
+    version: Literal["1"] = "1"
+    timestamp: datetime = Field(default_factory=utc_now)
+    data: AnalysisEventData
+
+    @classmethod
+    def from_analysis(cls, analysis: Any):  # noqa: ANN206
+        return cls(
+            data=AnalysisEventData(
+                analysis_id=analysis.id,
+                incident_id=analysis.incident_id,
+                status=analysis.status,
+            )
+        )
+
+
+class AnalysisStartedMessage(_AnalysisMessage):
+    type: Literal["analysis_started"] = "analysis_started"
+
+
+class AnalysisCompletedMessage(_AnalysisMessage):
+    type: Literal["analysis_completed"] = "analysis_completed"
+
+
+class AnalysisFailedMessage(_AnalysisMessage):
+    type: Literal["analysis_failed"] = "analysis_failed"
+
+
 class SimulationRunData(BaseModel):
     run_id: UUID
     scenario_id: str
