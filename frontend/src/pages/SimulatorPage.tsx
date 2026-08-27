@@ -104,7 +104,14 @@ export function ScenarioCard({
     <article className="flex flex-col rounded-xl border border-line bg-panel p-5 shadow-panel">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="font-mono text-xs text-accent">{scenario.id}</p>
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="font-mono text-xs text-accent">{scenario.id}</p>
+            {scenario.id === "SCN-005" ? (
+              <span className="rounded border border-cyan-400/25 bg-cyan-400/10 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-cyan-300">
+                Flagship demo
+              </span>
+            ) : null}
+          </div>
           <h2 className="mt-2 text-base font-semibold text-slate-100">
             {scenario.name}
           </h2>
@@ -299,6 +306,27 @@ export function SimulatorPage() {
           External and custom targets are not supported.
         </p>
       </div>
+
+      <section className="mt-6 rounded-xl border border-cyan-400/20 bg-cyan-400/[0.035] p-5 shadow-panel">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-cyan-300">
+              Portfolio demo guide
+            </p>
+            <h2 className="mt-2 text-base font-semibold text-slate-100">
+              Show the evidence pipeline with SCN-005
+            </h2>
+            <p className="mt-2 max-w-3xl text-xs leading-5 text-muted">
+              Run the multi-stage intrusion chain, wait for terminal status,
+              open its correlated incident, then review the deterministic story,
+              evidence links, Attack Map, and downloadable report.
+            </p>
+          </div>
+          <span className="rounded-md border border-line bg-black/15 px-3 py-2 font-mono text-[10px] text-slate-300">
+            Recommended: SCN-005
+          </span>
+        </div>
+      </section>
 
       {simulator.data.active_run ? (
         <ActiveRun run={simulator.data.active_run} />

@@ -275,6 +275,11 @@ export function AttackMapPage() {
         title="Attack Map"
       />
 
+      <p className="mt-4 rounded-lg border border-line bg-panel p-3 text-xs text-muted lg:hidden">
+        The topology is interactive on mobile; a larger viewport is recommended
+        for investigating multi-asset paths.
+      </p>
+
       {invalidDeepLink ? (
         <div className="mt-5 flex items-center gap-2 rounded-lg border border-amber-400/20 bg-amber-400/[0.05] p-3 text-xs text-amber-200">
           <AlertTriangle className="size-4" /> Invalid deep-link identifiers

@@ -23,7 +23,7 @@ import { TelemetryBadge } from "./TelemetryBadge";
 interface NavigationItem {
   label: string;
   icon: LucideIcon;
-  to?: string;
+  to: string;
 }
 
 const primaryNavigation: NavigationItem[] = [
@@ -49,36 +49,23 @@ function Navigation({ compact = false }: { compact?: boolean }) {
           : "flex flex-1 flex-col gap-1 px-3"
       }
     >
-      {primaryNavigation.map(({ icon: Icon, label, to }) =>
-        to ? (
-          <NavLink
-            className={({ isActive }) =>
-              `${baseClass} ${
-                isActive
-                  ? "border-accent/20 bg-accent/10 font-medium text-accent"
-                  : "border-transparent text-muted hover:bg-white/[0.035] hover:text-slate-200"
-              }`
-            }
-            end={to === "/"}
-            key={label}
-            to={to}
-          >
-            <Icon className="size-[18px]" strokeWidth={1.8} />
-            <span>{label}</span>
-          </NavLink>
-        ) : (
-          <button
-            className={`${baseClass} border-transparent text-slate-600`}
-            disabled
-            key={label}
-            title="Available in a later milestone"
-            type="button"
-          >
-            <Icon className="size-[18px]" strokeWidth={1.8} />
-            <span>{label}</span>
-          </button>
-        ),
-      )}
+      {primaryNavigation.map(({ icon: Icon, label, to }) => (
+        <NavLink
+          className={({ isActive }) =>
+            `${baseClass} ${
+              isActive
+                ? "border-accent/20 bg-accent/10 font-medium text-accent"
+                : "border-transparent text-muted hover:bg-white/[0.035] hover:text-slate-200"
+            }`
+          }
+          end={to === "/"}
+          key={label}
+          to={to}
+        >
+          <Icon className="size-[18px]" strokeWidth={1.8} />
+          <span>{label}</span>
+        </NavLink>
+      ))}
     </nav>
   );
 }
@@ -129,7 +116,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                 Control plane
               </p>
               <p className="text-[11px] text-muted">
-                v{health.data?.version ?? "0.1.0"}
+                v{health.data?.version ?? "unknown"}
               </p>
             </div>
           </div>

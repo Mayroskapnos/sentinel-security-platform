@@ -34,6 +34,8 @@ async def health_check() -> HealthResponse | JSONResponse:
         status="healthy" if database_healthy and correlation_healthy else "degraded",
         service=settings.app_name,
         version=settings.app_version,
+        build_sha=settings.sentinel_build_sha or None,
+        build_time=settings.sentinel_build_time or None,
         environment=settings.sentinel_env,
         checks={
             "api": ComponentHealth(status="healthy"),

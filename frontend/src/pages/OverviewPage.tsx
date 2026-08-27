@@ -3,11 +3,11 @@ import {
   BellRing,
   Boxes,
   Clock3,
-  Flame,
   Radio,
   ShieldAlert,
   ShieldCheck,
 } from "lucide-react";
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import {
   Area,
@@ -22,14 +22,18 @@ import {
   YAxis,
 } from "recharts";
 
+import { IncidentStatusBadge, SeverityBadge } from "../components/data/Badge";
 import { MetricCard } from "../components/data/MetricCard";
 import { PageHeading } from "../components/data/PageHeading";
 import { ErrorState, LoadingState } from "../components/data/QueryState";
 import {
+  useAssets,
   useDashboardActivity,
   useDashboardSummary,
+  useIncidents,
 } from "../hooks/useCoreData";
-import { formatShortTime, humanize } from "../lib/format";
+import { activityRangeLabel, activityRanges } from "../lib/dashboard";
+import { formatDateTime, formatShortTime, humanize } from "../lib/format";
 
 const tooltipStyle = {
   backgroundColor: "#0b111a",
@@ -48,28 +52,72 @@ const severityColors: Record<string, string> = {
 };
 
 export function OverviewPage() {
+  const [hours, setHours] = useState<number>(72);
   const summary = useDashboardSummary();
-  const activity = useDashboardActivity(72);
+  const activity = useDashboardActivity(hours);
+  const recentIncidents = useIncidents({ page: 1, page_size: 5 });
+  const highestRiskAssets = useAssets({ page: 1, page_size: 1 });
 
-  if (summary.isLoading || activity.isLoading) {
+  if (
+    summary.isLoading ||
+    activity.isLoading ||
+    recentIncidents.isLoading ||
+    highestRiskAssets.isLoading
+  ) {
     return <LoadingState label="Loading security operations data" />;
   }
-  if (summary.isError || activity.isError || !summary.data || !activity.data) {
-    return <ErrorState error={summary.error ?? activity.error} />;
+  if (
+    summary.isError ||
+    activity.isError ||
+    recentIncidents.isError ||
+    highestRiskAssets.isError ||
+    !summary.data ||
+    !activity.data ||
+    !recentIncidents.data ||
+    !highestRiskAssets.data
+  ) {
+    return (
+      <ErrorState
+        error={
+          summary.error ??
+          activity.error ??
+          recentIncidents.error ??
+          highestRiskAssets.error
+        }
+      />
+    );
   }
 
   const timeline = activity.data.events_over_time.map((bucket) => ({
     ...bucket,
     label: formatShortTime(bucket.timestamp),
   }));
+  const highestRiskAsset = highestRiskAssets.data.items[0];
+  const rangeLabel = activityRangeLabel(hours);
 
   return (
     <div className="mx-auto max-w-[1500px]">
       <PageHeading
         actions={
-          <div className="flex items-center gap-2 rounded-full border border-line bg-panel px-3 py-1.5 text-xs text-slate-300">
-            <Radio className="size-3.5 text-accent" />
-            PostgreSQL-backed
+          <div
+            aria-label="Dashboard activity range"
+            className="flex flex-wrap items-center gap-1 rounded-lg border border-line bg-panel p-1"
+          >
+            {activityRanges.map((range) => (
+              <button
+                aria-pressed={range === hours}
+                className={`rounded-md px-2.5 py-1.5 font-mono text-[10px] transition-colors ${
+                  range === hours
+                    ? "bg-accent/15 text-accent"
+                    : "text-muted hover:text-slate-200"
+                }`}
+                key={range}
+                onClick={() => setHours(range)}
+                type="button"
+              >
+                {range === 168 ? "7d" : `${range}h`}
+              </button>
+            ))}
           </div>
         }
         description="Database-backed asset posture and normalized security activity across the SENTINEL environment."
@@ -97,24 +145,6 @@ export function OverviewPage() {
           value={summary.data.open_alerts}
         />
         <MetricCard
-          detail="Open critical-priority detections"
-          icon={ShieldAlert}
-          label="Critical alerts"
-          value={summary.data.critical_alerts}
-        />
-        <MetricCard
-          detail="Open high-priority detections"
-          icon={Flame}
-          label="High alerts"
-          value={summary.data.high_alerts}
-        />
-        <MetricCard
-          detail="Registered lab inventory"
-          icon={Boxes}
-          label="Total assets"
-          value={summary.data.total_assets}
-        />
-        <MetricCard
           detail="Currently reporting online"
           icon={Radio}
           label="Online assets"
@@ -138,6 +168,95 @@ export function OverviewPage() {
           label="Events last hour"
           value={summary.data.events_last_hour}
         />
+        <MetricCard
+          detail={highestRiskAsset?.hostname ?? "No registered assets"}
+          icon={Boxes}
+          label="Highest asset risk"
+          value={highestRiskAsset?.risk_score ?? 0}
+        />
+      </section>
+
+      <section className="mt-6 overflow-hidden rounded-xl border border-line bg-panel shadow-panel">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line p-5">
+          <div>
+            <h2 className="text-sm font-semibold text-slate-100">
+              Recent incidents
+            </h2>
+            <p className="mt-1 text-xs text-muted">
+              Highest-priority investigations ordered by recent activity
+            </p>
+          </div>
+          <Link
+            className="text-xs text-accent hover:text-emerald-300"
+            to="/incidents"
+          >
+            Open incident queue
+          </Link>
+        </div>
+        {recentIncidents.data.items.length ? (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[900px] text-left">
+              <thead className="border-b border-line bg-black/10 text-[10px] uppercase tracking-wider text-slate-500">
+                <tr>
+                  <th className="px-4 py-3 font-medium">Incident</th>
+                  <th className="px-4 py-3 font-medium">Severity</th>
+                  <th className="px-4 py-3 font-medium">Confidence</th>
+                  <th className="px-4 py-3 font-medium">Assets</th>
+                  <th className="px-4 py-3 font-medium">Alerts</th>
+                  <th className="px-4 py-3 font-medium">Last activity</th>
+                  <th className="px-4 py-3 font-medium">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-line/70">
+                {recentIncidents.data.items.map((incident) => (
+                  <tr className="hover:bg-white/[0.025]" key={incident.id}>
+                    <td className="px-4 py-3">
+                      <Link
+                        className="text-xs text-slate-200 hover:text-accent"
+                        to={`/incidents/${incident.id}`}
+                      >
+                        {incident.incident_number}
+                      </Link>
+                      <p className="mt-1 max-w-sm truncate text-[10px] text-muted">
+                        {incident.title}
+                      </p>
+                    </td>
+                    <td className="px-4 py-3">
+                      <SeverityBadge severity={incident.severity} />
+                    </td>
+                    <td className="px-4 py-3 font-mono text-xs text-slate-300">
+                      {incident.confidence_score} / 100
+                    </td>
+                    <td className="px-4 py-3 text-xs text-slate-300">
+                      {incident.asset_count}
+                    </td>
+                    <td className="px-4 py-3 text-xs text-slate-300">
+                      {incident.alert_count}
+                    </td>
+                    <td className="px-4 py-3 font-mono text-[10px] text-muted">
+                      {formatDateTime(incident.last_activity_at)}
+                    </td>
+                    <td className="px-4 py-3">
+                      <IncidentStatusBadge status={incident.status} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="p-8 text-center">
+            <p className="text-sm text-slate-300">
+              No incidents have been correlated yet.
+            </p>
+            <Link
+              className="mt-2 inline-block text-xs text-accent hover:text-emerald-300"
+              to="/simulator"
+            >
+              Run a controlled lab scenario
+            </Link>
+          </div>
+        )}
       </section>
 
       <section className="mt-6 grid gap-6 xl:grid-cols-[1.65fr_1fr]">
@@ -147,7 +266,7 @@ export function OverviewPage() {
               Security events over time
             </h2>
             <p className="mt-1 text-xs text-muted">
-              Hourly normalized event volume · last 72 hours
+              Hourly normalized event volume · {rangeLabel}
             </p>
           </div>
           <div className="h-72">
@@ -198,7 +317,7 @@ export function OverviewPage() {
             Events by severity
           </h2>
           <p className="mt-1 text-xs text-muted">
-            Distribution in the selected 72-hour window
+            Distribution in the selected {rangeLabel}
           </p>
           <div className="mt-5 h-72">
             <ResponsiveContainer height="100%" width="100%">
@@ -289,39 +408,45 @@ export function OverviewPage() {
             Most active assets
           </h2>
           <p className="mt-1 text-xs text-muted">
-            Event-producing assets in the last 72 hours
+            Event-producing assets in the {rangeLabel}
           </p>
           <div className="mt-5 space-y-3">
-            {activity.data.most_active_assets.map((asset, index) => (
-              <div
-                className="flex items-center gap-3 rounded-lg border border-line/80 bg-[#0b111a] p-3"
-                key={`${asset.asset_id}-${asset.hostname}`}
-              >
-                <span className="grid size-7 shrink-0 place-items-center rounded-md bg-white/[0.04] font-mono text-[10px] text-muted">
-                  {String(index + 1).padStart(2, "0")}
-                </span>
-                <div className="min-w-0 flex-1">
-                  {asset.asset_id ? (
-                    <Link
-                      className="truncate text-xs font-medium text-slate-200 hover:text-accent"
-                      to={`/assets/${asset.asset_id}`}
-                    >
-                      {asset.hostname}
-                    </Link>
-                  ) : (
-                    <p className="truncate text-xs text-slate-300">
-                      {asset.hostname}
+            {activity.data.most_active_assets.length ? (
+              activity.data.most_active_assets.map((asset, index) => (
+                <div
+                  className="flex items-center gap-3 rounded-lg border border-line/80 bg-[#0b111a] p-3"
+                  key={`${asset.asset_id}-${asset.hostname}`}
+                >
+                  <span className="grid size-7 shrink-0 place-items-center rounded-md bg-white/[0.04] font-mono text-[10px] text-muted">
+                    {String(index + 1).padStart(2, "0")}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    {asset.asset_id ? (
+                      <Link
+                        className="truncate text-xs font-medium text-slate-200 hover:text-accent"
+                        to={`/assets/${asset.asset_id}`}
+                      >
+                        {asset.hostname}
+                      </Link>
+                    ) : (
+                      <p className="truncate text-xs text-slate-300">
+                        {asset.hostname}
+                      </p>
+                    )}
+                    <p className="mt-1 text-[10px] uppercase tracking-wider text-slate-600">
+                      Normalized telemetry
                     </p>
-                  )}
-                  <p className="mt-1 text-[10px] uppercase tracking-wider text-slate-600">
-                    Normalized telemetry
-                  </p>
+                  </div>
+                  <span className="font-mono text-sm font-semibold text-accent">
+                    {asset.count}
+                  </span>
                 </div>
-                <span className="font-mono text-sm font-semibold text-accent">
-                  {asset.count}
-                </span>
-              </div>
-            ))}
+              ))
+            ) : (
+              <p className="rounded-lg border border-dashed border-line p-5 text-center text-xs text-muted">
+                No event-producing assets in this range.
+              </p>
+            )}
           </div>
         </article>
       </section>

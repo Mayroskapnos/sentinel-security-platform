@@ -62,6 +62,7 @@ def test_database_connection_rule_is_intentionally_unmapped() -> None:
     rule = rules["DET-DB-001"]
 
     assert rule.match.event_type == "database_connection"
+    assert rule.match.source == "database_client"
     assert rule.match.action is None
     assert rule.match.status is None
     assert rule.context is not None

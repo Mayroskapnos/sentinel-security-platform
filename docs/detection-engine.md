@@ -43,11 +43,11 @@ The schema permits only known event/group/context fields. Unknown keys and inval
 | `DET-SSH-002` | Sequence | 5 failed SSH logins followed by success per source/destination/user in 300 seconds | High | Defense Evasion / T1078 |
 | `DET-NET-001` | Distinct threshold | 10 destination ports per source in 60 seconds | Medium | Discovery / T1046 |
 | `DET-PRIV-001` | Single event | Successful representative `sudo_command` telemetry | High | Privilege Escalation / T1548.003 |
-| `DET-DB-001` | Contextual single event | Database-connection event from a workstation source to a database asset | Medium | Not mapped |
+| `DET-DB-001` | Contextual single event | Workstation-side database-client connection event from a workstation source to a database asset | Medium | Not mapped |
 
 These detections identify security-relevant activity for analyst review. They do not claim malicious intent, perform scanning, or take response action.
 
-`DET-DB-001` intentionally asserts no ATT&CK technique. Its evidence is limited to the normalized `database_connection` event type and workstation/database asset context; it does not evaluate connection status, queries, returned data, exports, or other proof of collection.
+`DET-DB-001` intentionally asserts no ATT&CK technique. It evaluates the workstation-side `database_client` record with normalized `database_connection` type and workstation/database asset context. The corresponding native PostgreSQL record remains stored telemetry but does not race the explicitly attributable client evidence into an Alert. The rule does not evaluate connection status, queries, returned data, exports, or other proof of collection.
 
 ## Windows, grouping, and late events
 

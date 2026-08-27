@@ -93,3 +93,17 @@ class InvestigationRepository:
             .order_by(InvestigationAnalysis.created_at.desc())
             .limit(1)
         )
+
+    async def latest_completed(self, incident_id: UUID) -> InvestigationAnalysis | None:
+        return await self.session.scalar(
+            select(InvestigationAnalysis)
+            .where(
+                InvestigationAnalysis.incident_id == incident_id,
+                InvestigationAnalysis.status == "completed",
+            )
+            .order_by(
+                InvestigationAnalysis.created_at.desc(),
+                InvestigationAnalysis.id.desc(),
+            )
+            .limit(1)
+        )

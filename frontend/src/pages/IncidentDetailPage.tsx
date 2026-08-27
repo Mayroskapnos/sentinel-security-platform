@@ -15,6 +15,7 @@ import {
 } from "../components/data/Badge";
 import { ErrorState, LoadingState } from "../components/data/QueryState";
 import { InvestigationAssistant } from "../components/investigation/InvestigationAssistant";
+import { IncidentReportActions } from "../components/reports/IncidentReportActions";
 import { useIncident, useUpdateIncident } from "../hooks/useCoreData";
 import { formatDateTime, humanize } from "../lib/format";
 import { incidentConfidenceLabel } from "../lib/incidents";
@@ -152,6 +153,9 @@ export function IncidentDetailPage() {
                 Mark {humanize(status)}
               </button>
             ))}
+            <div className="basis-full lg:max-w-md">
+              <IncidentReportActions incidentId={incident.id} />
+            </div>
           </div>
         </div>
         <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
@@ -179,6 +183,9 @@ export function IncidentDetailPage() {
 
       <div className="mt-6 grid gap-6 xl:grid-cols-[1.35fr_0.65fr]">
         <section className="rounded-xl border border-line bg-panel p-5 shadow-panel">
+          <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-accent">
+            SENTINEL Deterministic Analysis
+          </p>
           <h2 className="text-sm font-semibold text-slate-100">Attack Story</h2>
           <p className="mt-2 text-xs leading-5 text-muted">
             Chronological stages reconstructed only from alerts and their

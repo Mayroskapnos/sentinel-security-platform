@@ -15,7 +15,9 @@ class Settings(BaseSettings):
     )
 
     app_name: str = "sentinel-api"
-    app_version: str = "0.1.0"
+    app_version: str = "1.0.0"
+    sentinel_build_sha: str | None = Field(default=None, max_length=64)
+    sentinel_build_time: str | None = Field(default=None, max_length=64)
     sentinel_env: str = "development"
     log_level: str = "INFO"
 

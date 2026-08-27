@@ -19,6 +19,9 @@ async def test_health_endpoint_reports_database_connectivity(monkeypatch) -> Non
     assert response.status_code == 200
     payload = response.json()
     assert payload["status"] == "healthy"
+    assert payload["version"] == "1.0.0"
+    assert payload["build_sha"] is None
+    assert payload["build_time"] is None
     assert payload["checks"]["api"]["status"] == "healthy"
     assert payload["checks"]["database"]["status"] == "healthy"
 

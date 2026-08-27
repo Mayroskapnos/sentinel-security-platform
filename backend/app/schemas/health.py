@@ -12,5 +12,7 @@ class HealthResponse(BaseModel):
     status: Literal["healthy", "degraded"]
     service: str
     version: str
+    build_sha: str | None = None
+    build_time: str | None = None
     environment: str
     checks: dict[str, ComponentHealth]

@@ -1,4 +1,4 @@
-.PHONY: setup dev up down logs test lint build config migrate rules seed demo reset telemetry telemetry-burst detection-demo lab-up lab-down lab-logs lab-status lab-reset lab-activity-web lab-activity-db lab-activity-auth lab-activity-privilege simulator-status scenario-list scenario-run scenario-history validate-scenarios validate-correlation validate-ai network-rebuild incident-rebuild network-integration test-lab clean
+.PHONY: setup dev up down logs test lint build config migrate rules seed demo reset demo-reset demo-ready release-check telemetry telemetry-burst detection-demo lab-up lab-down lab-logs lab-status lab-reset lab-activity-web lab-activity-db lab-activity-auth lab-activity-privilege simulator-status scenario-list scenario-run scenario-history validate-scenarios validate-correlation validate-ai network-rebuild incident-rebuild network-integration test-lab clean
 
 setup:
 	@test -f .env || cp .env.example .env
@@ -45,6 +45,24 @@ demo: seed
 
 reset:
 	docker compose exec -T backend python -m app.cli.seed --reset
+
+demo-reset:
+	docker compose exec -T backend python -m app.cli.demo_reset --confirm-development-reset
+
+demo-ready: up migrate rules
+	docker compose ps
+
+release-check:
+	cd backend && python -m ruff check . ../tools ../lab
+	cd backend && python -m ruff format --check . ../tools ../lab
+	cd backend && python -m pytest
+	cd frontend && npm run lint
+	cd frontend && npm run typecheck
+	cd frontend && npm test
+	cd frontend && npm run format:check
+	cd frontend && npm run build
+	docker compose config --quiet
+	python tools/validate_lab_compose.py
 
 telemetry:
 	python tools/telemetry_producer.py --mode stream --count 25 --interval 2

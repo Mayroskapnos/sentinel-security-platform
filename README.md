@@ -1,378 +1,255 @@
 # SENTINEL
 
-**Security Monitoring & Attack Detection Platform**
+**Evidence-first security monitoring, attack detection, incident investigation, and controlled Purple Team validation in one reproducible local platform.**
 
-SENTINEL is an experimental security monitoring and Purple Team platform for controlled environments. It provides persistent asset inventory, normalized security-event storage, deterministic detections, evidence-backed alerts, live delivery, investigation workflows, and database-backed operational dashboards.
+[![CI](https://github.com/Mayroskapnos/sentinel-security-platform/actions/workflows/ci.yml/badge.svg)](https://github.com/Mayroskapnos/sentinel-security-platform/actions/workflows/ci.yml)
+![Version](https://img.shields.io/badge/version-1.0.0-39c6a3)
+[![License: MIT](https://img.shields.io/badge/License-MIT-64748b.svg)](LICENSE)
 
-> Current status: **Milestone 8 - Investigation Assistant / AI Incident Analysis**. The assistant is optional, evidence-grounded, and analysis-only; active response is not implemented.
+SENTINEL is a portfolio-grade experimental security observability platform. A fictional, isolated Docker corporate lab produces genuine service and operating-system logs; SENTINEL collects, normalizes, detects, correlates, visualizes, investigates, and exports the resulting evidence. It emphasizes transparent state, conservative security claims, and safe demo boundaries.
 
-## What is SENTINEL?
+> This is not a production SIEM, penetration-testing tool, or forensic/compliance system. The local application has no user authentication, RBAC, or TLS termination. Do not expose it to the public internet or target systems outside the bundled lab.
 
-SENTINEL is a portfolio-grade exploration of the architecture behind SIEM, EDR/XDR, incident-response, and network-monitoring products. It is not a production SIEM and contains no functionality for targeting external systems.
+## Demo / Preview
 
-## Current features
+The primary portfolio path is `SCN-005`: a fixed multi-stage lab sequence that produces real source logs and demonstrates the complete path through telemetry, Alerts, Incident correlation, Attack Map, optional grounded AI, and PDF/HTML reporting.
 
-- Persistent PostgreSQL Asset and SecurityEvent domain models
-- Persistent DetectionRule, Alert, and relational Alert-to-SecurityEvent evidence models
-- Safe validated YAML rule loading with database synchronization and analyst enable/disable state
-- Explainable threshold, sequence, and contextual single-event detections with five bundled rules
-- Deterministic suppression, workflow transitions, ATT&CK metadata, and risk prioritization
-- SQLAlchemy 2.x async data access with constrained, indexed schemas
-- Alembic-managed schema lifecycle; application startup never calls `create_all`
-- Versioned asset and event APIs with validation, filtering, and bounded pagination
-- Dedicated telemetry ingestion with deterministic asset resolution and monotonic `last_seen`
-- Typed WebSocket delivery after PostgreSQL commit, with browser-origin checks and per-client failure isolation
-- Automatic frontend reconnection, missed-event REST recovery, ID deduplication, and live row cues
-- Debounced dashboard and asset-detail updates through TanStack Query
-- Safe bounded synthetic producer with single, stream, burst, and detection-demo modes
-- Isolated DMZ, employee, server, and management Docker networks
-- Real corporate web, Linux host, SSH, sudo, PostgreSQL, network, and health telemetry
-- Read-only file-tail collector with persistent checkpoints and bounded retry backoff
-- Lightweight collector-key authentication for local event ingestion
-- Telemetry-derived Corporate Lab status UI and server-side source filtering
-- Five repository-defined Purple Team scenarios with persistent run history and cancellation
-- Strict target/action registries, hard execution limits, one-run concurrency, and restart recovery
-- Explicit ScenarioRun telemetry attribution and honest expected-versus-observed detection results
-- Typed live simulator progress with REST recovery after refresh or WebSocket loss
-- Persistent, incrementally aggregated asset-to-asset network relationships
-- Backend-driven React Flow Attack Map with zone layout, live updates, filters, detail panels, and ATT&CK overlay
-- Exact ScenarioRun attack progression from explicitly attributed events, including historical runs
-- Persistent Incidents with deterministic multi-alert correlation and stored explanations
-- Evidence-backed chronological attack-story reconstruction with conservative language
-- Incident queue/detail workflows, live updates, lifecycle state, and incident-scoped Attack Map
-- Optional evidence-grounded Incident summaries, uncertainty reporting, evidence-linked recommendations, and bounded Incident Q&A
-- Disabled-by-default provider abstraction with a deterministic local mock and configured OpenAI Responses API adapter
-- Persistent versioned analysis history with context-hash staleness, safe failure isolation, and typed live completion updates
-- Database-side dashboard summary and aggregation queries
-- Idempotent demo seeding with five lab assets and 180 coherent historical events
-- Searchable Assets, Asset Details, Events, Alerts, Alert Detail, and Detection Rules workflows
-- Structured JSON logging and structured API errors
-- Loopback-bound published services; platform runtimes use unprivileged users
+Real product screenshots were not committed because automated browser capture was unavailable during release-candidate validation. The exact manual capture list is in [docs/images/README.md](docs/images/README.md); no screenshots are fabricated.
 
-## Architecture
+## Why I Built It
+
+Security products are often shown as disconnected dashboards or opaque alerts. SENTINEL explores the engineering underneath: identity resolution, durable evidence, time windows, suppression, state transitions, async delivery, correlation ambiguity, topology semantics, provider trust boundaries, and analyst-ready outputs. The goal is a coherent full-stack system that can explain what it observed and what it did not prove.
+
+## What SENTINEL Does
+
+```text
+fixed lab action -> actual service log -> read-only collector
+                 -> validated SecurityEvent -> PostgreSQL
+                 -> deterministic detection -> evidence-backed Alert
+                 -> explainable Incident correlation -> Attack Map
+                 -> optional grounded analysis -> Incident report
+```
+
+- Stores canonical Assets and immutable normalized SecurityEvents.
+- Evaluates five repository-defined threshold, sequence, and contextual rules.
+- Links every Alert to relational event evidence and applies deterministic suppression.
+- Runs five safe, fixed-target validation scenarios in the bundled lab.
+- Builds observed asset relationships and exact ScenarioRun/Incident topology.
+- Correlates Alerts into persistent Incidents using stored evidence signals and scores.
+- Provides optional bounded, redacted, validated AI summaries and Incident Q&A.
+- Exports point-in-time self-contained HTML and printable PDF Incident reports.
+- Delivers low-latency WebSocket hints while REST/PostgreSQL remain authoritative.
+
+## End-to-End Architecture
 
 ```mermaid
 flowchart LR
-    Producer[Synthetic producer] -->|POST telemetry| API[FastAPI]
-    Simulator[Controlled simulator] -->|fixed lab actions| Lab[Corporate lab services]
-    Lab -->|actual logs| Collector[Collector and adapters]
-    Collector -->|POST telemetry| API
-    API --> Normalizer[Event normalizer]
-    Normalizer --> Service[Security event service]
-    Service --> DB[(PostgreSQL 16)]
-    Service --> Topology[Network relationship aggregator]
-    Topology --> DB
-    Topology -->|compact relationship update| WS[WebSocket manager]
-    Service -->|committed event| WS[WebSocket manager]
-    Service --> Engine[Detection engine]
-    Rules[Validated YAML and database state] --> Engine
-    Engine --> Alerts[Alert service]
-    Alerts --> DB
-    Alerts -->|committed alert| WS
-    Alerts --> Correlation[Correlation engine]
-    Correlation --> Incidents[Incident and attack story]
-    Incidents --> DB
-    Incidents -->|committed incident| WS
-    Incidents --> Context[Bounded redacted investigation context]
-    Context --> Assistant[Optional AI provider]
-    Assistant --> Grounding[Schema and evidence grounding]
-    Grounding --> DB
-    WS --> Proxy[Nginx]
-    Proxy --> UI[React dashboard]
-    UI -->|authoritative REST queries| Proxy
-    Alembic[Alembic migrations] --> DB
-    Seed[Deterministic demo seed] --> DB
+    Actions[Fixed lab actions] --> Services[Corporate Lab services]
+    Services -->|actual logs| Collector[Read-only collector]
+    Collector -->|authenticated telemetry| API[FastAPI]
+    API --> Normalize[Validation and normalization]
+    Normalize --> Events[(PostgreSQL SecurityEvents)]
+    Events --> Topology[Relationship aggregation]
+    Events --> Detection[Deterministic detection]
+    Rules[Validated YAML and DB state] --> Detection
+    Detection --> Alerts[Evidence-backed Alerts]
+    Alerts --> Correlation[Explainable correlation]
+    Correlation --> Incidents[Incidents and attack stories]
+    Incidents --> Reports[HTML / PDF reports]
+    Incidents --> Context[Bounded redacted context]
+    Context --> AI[Optional AI provider]
+    AI --> Validation[Schema and grounding checks]
+    Validation --> Incidents
+    Events --> WS[Versioned WebSocket hints]
+    Alerts --> WS
+    Incidents --> WS
+    WS --> UI[React analyst workspace]
+    UI -->|authoritative REST| API
 ```
 
-PostgreSQL and the deterministic security engine remain the source of truth. The optional AI assistant is an explanation and investigation aid, never a detector or correlation authority. WebSockets provide low-latency delivery; REST refetches repair any gap after reconnection. See [Architecture](docs/architecture.md), [Incident Correlation](docs/incident-correlation.md), [Investigation Assistant](docs/investigation-assistant.md), [Corporate Lab](docs/corporate-lab.md), [Attack Simulator](docs/attack-simulator.md), [Attack Map](docs/attack-map.md), [Detection Engine](docs/detection-engine.md), [Telemetry](docs/telemetry.md), [API Reference](docs/api.md), and [Security Model](docs/security-model.md).
+PostgreSQL is the durable source of truth. WebSockets never replace REST recovery, ScenarioRun intent never replaces observed evidence, and the AI provider cannot modify security state. See [Architecture](docs/architecture.md), [Telemetry](docs/telemetry.md), and [Security Model](docs/security-model.md).
 
-## Technology stack
+## Flagship Demo
 
-| Layer | Technology |
-| --- | --- |
-| Frontend | React 19, TypeScript, Vite, Tailwind CSS, TanStack Query, React Router, Recharts, React Flow |
-| Backend | Python 3.12+, FastAPI, Pydantic, SQLAlchemy 2.x, Alembic, Uvicorn |
-| Database | PostgreSQL 16 |
-| Runtime | Docker, Docker Compose, Nginx |
-| Quality | pytest, Ruff, Vitest, ESLint, Prettier, strict TypeScript, GitHub Actions |
+1. Start the full stack and confirm System health.
+2. Open Attack Simulator and run `SCN-005`.
+3. Watch persisted steps while expected-but-unobserved detections remain neutral during the active run.
+4. Follow observed Alerts and the correlated Incident after terminal status.
+5. Inspect deterministic story stages, correlation signals, evidence links, authoritative ATT&CK, and affected assets.
+6. Open the Incident-scoped Attack Map; only persisted evidence relationships appear.
+7. Export an evidence-only PDF or HTML Incident report.
+8. Optionally enable the local mock assistant, generate analysis, and explicitly include its separately labeled section in a second report.
+9. Restart and show that runs, evidence, incidents, analyses, and report regeneration persist.
 
-## Quick start
+Use the narrated [Demo Guide](docs/demo.md). Detection suppression is respected and never bypassed, so wait for its five-minute cooldown before repeating a scenario that expects the same rule.
 
-Requirements:
+## Core Capabilities
 
-- Docker Desktop with Docker Compose
-- Ports `3000`, `8000`, `8081`, and `5432` available on localhost, or customized in `.env`
+### Monitoring and live delivery
+
+- Canonical five-asset inventory synchronized from repository definitions.
+- Validated telemetry ingestion, deterministic asset resolution, monotonic freshness, bounded bodies, server filters, and pagination.
+- Versioned WebSocket messages after database commit, browser origin allow-listing, reconnect recovery, and ID deduplication.
+- Dashboard summary, selectable 1h/6h/24h/72h/7d activity, recent Incidents, and risk posture.
+
+### Detection and alerting
+
+- Strict Pydantic/YAML rule definitions synchronized while preserving analyst enable state.
+- Database-backed threshold/sequence windows and contextual single-event rules.
+- Suppression, evidence attachment, analyst lifecycle, risk recomputation, and live update handling.
+- ATT&CK mapping only when telemetry supports the asserted technique. `DET-DB-001` intentionally has no technique because a connection does not prove database queries, collection, or exfiltration.
+
+### Corporate Lab and simulator
+
+- Separate DMZ, employee, server, and management networks.
+- Web/HTTP, Linux audit, SSH, sudo, PostgreSQL, network, and health log sources.
+- Read-only collector volumes with durable checkpoints and bounded retry.
+- Five declarative scenarios, one-run database constraint, cancellation, restart recovery, and exact run attribution.
+- No arbitrary hostnames, addresses, URLs, ports, commands, SQL, payloads, credentials, scanning, exploitation, or external targets.
+
+### Attack Map and Incidents
+
+- Persisted aggregate source/destination/protocol/port/type relationships between known assets.
+- Backend-driven React Flow topology with zone/filter/window views, observed activities, alert/asset details, exact run/Incident overlays, and honest empty/offline states.
+- Persistent Incidents with bounded multi-signal correlation, single Alert membership, explainable confidence, affected Assets, workflow state, and deterministic chronological stories.
+
+### Investigation and reporting
+
+- Disabled-by-default mock/OpenAI provider abstraction, bounded redaction, prompt separation, structured validation, evidence citations, uncertainty, staleness, persistent analysis history, and Incident-scoped Q&A.
+- Authoritative report-context service shared by self-contained HTML and printable A4 PDF renderers.
+- Safe attachment filenames/headers, HTML escaping/CSP, snapshot semantics, privacy warning, limitations, and AI opt-in.
+
+## Security Architecture
+
+```mermaid
+flowchart TB
+    Host[Developer host / loopback] --> Gateway[Fixed lab web gateway]
+    Host --> Frontend[Frontend / Nginx]
+    Frontend --> Backend[FastAPI management network]
+    Backend --> PlatformDB[(Platform PostgreSQL)]
+    subgraph Internal Corporate Lab
+      LabServices[Web, hosts, admin, lab DB]
+      Broker[Fixed-action non-root broker]
+    end
+    Gateway --> LabServices
+    Broker --> LabServices
+    LabServices --> Logs[Named log volumes]
+    Logs -->|read only| Collector
+    Collector -->|separate shared key| Backend
+    Backend -->|fixed upstream and simulation key| Gateway
+```
+
+Published ports bind only to `127.0.0.1`. Platform and lab databases, credentials, and volumes are separate. Containers are unprivileged where practical, logs are bounded, no service mounts the Docker socket or host root, and the simulator broker has no host port or generic execution route. These are strong local-development controls, not production authorization. Full boundaries and residual risk are in [Security Model](docs/security-model.md).
+
+## Deterministic vs AI
+
+Detections, Alert evidence, correlation, Incident state, ATT&CK mappings, counts, story, topology, and report facts are deterministic and database-backed. The optional assistant is a non-authoritative analysis aid. It receives only a server-built bounded/redacted Incident snapshot, has no tools or database access, and cannot run scenarios, modify state, contain assets, or alter report facts.
+
+The local mock sends no data externally. Configured OpenAI use sends selected redacted evidence to an external provider and therefore adds a privacy/retention boundary. Provider failure never degrades core health, detection, incidents, or reports. See [Investigation Assistant](docs/investigation-assistant.md).
+
+## Technology Stack
+
+| Layer    | Technology                                                                                          |
+| -------- | --------------------------------------------------------------------------------------------------- |
+| Frontend | React 19, strict TypeScript, Vite, Tailwind CSS, TanStack Query, React Router, Recharts, React Flow |
+| Backend  | Python 3.12+, FastAPI, Pydantic, SQLAlchemy 2 async, Alembic, Uvicorn, ReportLab                    |
+| Data     | PostgreSQL 16, relational evidence, JSONB context/snapshots                                         |
+| Runtime  | Docker Compose, Nginx, isolated internal bridges, health checks                                     |
+| Quality  | pytest, Ruff, Vitest, ESLint, Prettier, GitHub Actions, Compose/lab validators                      |
+
+## Quick Start
+
+Requirements: Docker with Compose v2, Git, approximately 4 GB free memory, and loopback ports `3000`, `8000`, `5432`, and `8081` (or customize them).
 
 ```bash
+git clone https://github.com/Mayroskapnos/sentinel-security-platform.git
+cd sentinel-security-platform
+cp .env.example .env
 docker compose up --build -d
+docker compose ps
 ```
 
-The backend applies migrations, synchronizes bundled rules, and synchronizes the five canonical lab assets before starting. Historical synthetic seeding remains optional and idempotent. The same command works in PowerShell.
-
-Open:
-
-- Dashboard: <http://localhost:3000>
-- Events: <http://localhost:3000/events>
-- Alerts: <http://localhost:3000/alerts>
-- Incidents: <http://localhost:3000/incidents>
-- Detection rules: <http://localhost:3000/rules>
-- System and lab status: <http://localhost:3000/system>
-- Attack Simulator: <http://localhost:3000/simulator>
-- Attack Map: <http://localhost:3000/attack-map>
-- Corporate lab portal: <http://localhost:8081>
-- API health: <http://localhost:8000/api/v1/health>
-- OpenAPI: <http://localhost:8000/api/docs>
-
-The Compose defaults work without an `.env` file. Copy `.env.example` to `.env` to customize local values.
-
-## Corporate Lab
-
-The corporate lab is an isolated local environment built specifically for SENTINEL development and demonstration. A normal start runs eleven containers: the three SENTINEL platform services, five corporate services, one collector, one hardened localhost portal gateway, and one lightweight controlled-action broker. Lab PostgreSQL is completely separate from the PostgreSQL that stores SENTINEL assets, events, rules, alerts, and scenario runs.
-
-```text
-Actual web / Linux / SSH / sudo / PostgreSQL logs
-    -> read-only collector adapters
-    -> authenticated Telemetry API
-    -> SecurityEvent
-    -> WebSocket + Detection Engine
-    -> Events / Alerts UI
-```
-
-Useful commands:
+PowerShell uses `Copy-Item .env.example .env`. Open <http://127.0.0.1:3000> and verify <http://127.0.0.1:8000/api/v1/health>. Startup applies migrations and synchronizes rules/assets; historical demo events remain optional.
 
 ```bash
-make lab-up
-make lab-status
-make lab-logs
-make lab-activity-web
-make lab-activity-auth
-make lab-activity-privilege
-make lab-activity-db
-make test-lab
-```
-
-The background activity rate is a few internal events per minute. It does not scan, brute force, exploit, or contact arbitrary internet services. Sudo and direct workstation-to-database actions are explicit only. `make lab-reset` removes only corporate-lab containers and volumes; it preserves SENTINEL security history. See [Corporate Lab](docs/corporate-lab.md) for topology, fictional credentials, isolation, and limitations.
-
-## Attack Simulator
-
-The Attack Simulator is a controlled security-validation workflow, not a penetration-testing tool. Select one of five built-in scenarios in `/simulator`, confirm the Corporate Lab-only run, observe real persisted step progress, and follow genuine telemetry through the collector and Detection Engine. Scenario files contain validated data only; users cannot provide addresses, hostnames, ports, URLs, credentials, SQL, payloads, or commands.
-
-```text
-Attack Simulator -> fixed lab action -> actual service logs -> collector
-                 -> SecurityEvents -> Detection Engine -> Alerts
-```
-
-SCN-001 validates SSH credential activity, SCN-002 uses exactly ten compiled internal service endpoints, SCN-003 performs a harmless fixed sudo identity check, SCN-004 opens a fixed workstation database connection, and flagship SCN-005 combines all stages. DET-DB-001 remains intentionally ATT&CK-unmapped because it proves a connection, not data collection.
-
-Only one run may be active. Cancelling stops future steps and preserves telemetry and alerts already generated. Expected detections are displayed separately from observed detections; suppression is respected and never bypassed. Back-to-back runs may therefore show an expected detection as not observed until its five-minute rule cooldown expires.
-
-```bash
-make simulator-status
-make scenario-list
-make scenario-run SCENARIO=SCN-005
-make scenario-history
-```
-
-PowerShell alternatives use `Invoke-RestMethod`, for example:
-
-```powershell
-Invoke-RestMethod http://127.0.0.1:8000/api/v1/simulator/scenarios
-Invoke-RestMethod -Method Post http://127.0.0.1:8000/api/v1/simulator/run/SCN-005
-```
-
-Compose enables the simulator for local development. Set `SENTINEL_SIMULATOR_ENABLED=false` elsewhere to reject new execution while retaining metadata and history. The local API has no user authentication and must not be publicly exposed. See [Attack Simulator](docs/attack-simulator.md).
-
-## Attack Map
-
-`/attack-map` renders backend-provided assets and only telemetry-observed relationships. It supports live windows, zone and investigation filters, asset/alert deep links, evidence panels, observed ATT&CK badges, and exact `?run=<scenario-run-uuid>` progression. When the lab is offline, persisted history remains inspectable without claiming live activity.
-
-New events update relationships incrementally. Existing installations can deterministically backfill the aggregate table without modifying immutable SecurityEvents:
-
-```bash
-make network-rebuild
-```
-
-See [Attack Map](docs/attack-map.md) for the identity rules, recency semantics, API contract, and limitations.
-
-## Incident correlation
-
-Every authoritative Alert is evaluated after commit against a bounded 15-minute active-Incident window. Stored evidence such as explicit ScenarioRun attribution, source identity, username, affected Assets, observed network relationships, time proximity, and forward detection progression contributes to an explainable score. Time alone is insufficient. Equal top scores remain separate rather than being merged arbitrarily.
-
-The `/incidents` queue and `/incidents/:id` detail page show lifecycle state, severity, deterministic confidence, affected Assets, observed ATT&CK mappings, stored correlation reasons, chronological story steps, Alert/Event evidence links, and an exact incident Attack Map. Confidence is not a compromise probability. Story language does not claim database queries or collection when telemetry proves only a connection.
-
-Run the flagship evidence flow after suppression cooldowns have expired:
-
-```bash
-make scenario-run SCENARIO=SCN-005
-```
-
-Then open the completed ScenarioRun, its correlated Incident, and **View Incident on Attack Map**. Historical Alerts that predate Milestone 7 can be associated non-destructively with `make incident-rebuild`. See [Incident Correlation](docs/incident-correlation.md).
-
-## Investigation Assistant
-
-Incident Detail retains the deterministic story as the primary evidence view and adds an optional, visually distinct Investigation Assistant beneath it. Generation is always user-triggered. Completed output cites actual SENTINEL evidence, reports uncertainty, recommends defensive analyst review only, and becomes visibly outdated when Incident evidence changes.
-
-AI is disabled by default. For a local no-network demonstration:
-
-```text
-SENTINEL_AI_ENABLED=true
-SENTINEL_AI_PROVIDER=mock
-SENTINEL_AI_MODEL=sentinel-mock-v1
-```
-
-The mock provider is clearly labeled and never sends data externally. A configured `openai` provider sends selected bounded and redacted Incident evidence to that external provider; its key belongs only in an untracked `.env`. Provider timeout or failure affects only the analysis record, never the Incident or core health. See [Investigation Assistant](docs/investigation-assistant.md) for configuration, privacy, grounding, prompt-injection defenses, and limitations.
-
-## Live telemetry
-
-The development producer exercises the complete live path:
-
-```text
-Synthetic Producer -> Telemetry API -> Normalization -> PostgreSQL -> WebSocket -> React
-```
-
-With the stack seeded and `/events` open, run:
-
-```bash
-make telemetry
-```
-
-Windows alternative:
-
-```powershell
-python tools/telemetry_producer.py --mode stream --count 25 --interval 2
-```
-
-Other bounded modes:
-
-```bash
-python tools/telemetry_producer.py --mode single
-python tools/telemetry_producer.py --mode burst --count 100
-```
-
-The producer targets the seeded hosts and emits synthetic development telemetry only. It does not collect endpoint data or simulate attacks. `Ctrl+C` stops a stream cleanly.
-
-## Detection demo
-
-With the stack seeded, open `/events` and `/alerts`, then send ten synthetic failed-SSH records:
-
-```bash
-make detection-demo
-```
-
-PowerShell alternative:
-
-```powershell
-python tools/telemetry_producer.py --mode detection-demo
-```
-
-The tenth qualifying event triggers `DET-SSH-001`. The event and alert commit before their respective WebSocket messages, so both appear live and remain after restart. Additional matching events during the five-minute suppression period update the existing alert instead of flooding the analyst. This is rule-testing telemetry only; it performs no authentication or attack.
-
-## Demo data
-
-```bash
-docker compose exec -T backend alembic upgrade head
 docker compose exec -T backend python -m app.cli.seed
-docker compose exec -T backend python -m app.cli.seed --reset
 ```
 
-Equivalent Make targets are `make migrate`, `make seed`, `make demo`, and `make reset`.
+See [Getting Started](docs/getting-started.md) and [Configuration](docs/configuration.md) for host development, port changes, optional AI, and troubleshooting.
 
-| Hostname | Type | Zone | Address |
-| --- | --- | --- | --- |
-| `web-server` | Web server | DMZ | `10.10.10.10` |
-| `employee-01` | Workstation | Employee | `10.10.20.10` |
-| `employee-02` | Workstation | Employee | `10.10.20.11` |
-| `admin-server` | Server | Server | `10.10.30.10` |
-| `database` | Database | Server | `10.10.30.20` |
-
-These identities are synchronized at startup and correspond directly to the running Corporate Lab containers. `python -m app.cli.seed` remains optional for adding historical synthetic events.
-
-## Local development
-
-Start PostgreSQL, prepare the backend, migrate, and run the API:
+## Demo Workflow
 
 ```bash
-docker compose up -d postgres
-cd backend
-python -m venv .venv
-source .venv/bin/activate
-python -m pip install -r requirements-dev.txt
-export DATABASE_URL=postgresql+asyncpg://sentinel:sentinel_dev_only_change_me@localhost:5432/sentinel
-alembic upgrade head
-python -m app.cli.sync_rules
-python -m app.cli.seed
-uvicorn app.main:app --reload
+make demo-ready
+make scenario-run SCENARIO=SCN-005
 ```
 
-PowerShell activation and environment setup:
-
-```powershell
-Set-Location backend
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-$env:DATABASE_URL = 'postgresql+asyncpg://sentinel:sentinel_dev_only_change_me@localhost:5432/sentinel'
-alembic upgrade head
-python -m app.cli.sync_rules
-python -m app.cli.seed
-uvicorn app.main:app --reload
-```
-
-In a second terminal:
+For a clean development demonstration:
 
 ```bash
-cd frontend
-npm ci
-npm run dev
+make demo-reset
+make demo-ready
 ```
 
-Vite runs at <http://localhost:5173> and proxies both HTTP and WebSocket `/api` traffic to port `8000`.
+`demo-reset` removes generated telemetry/investigation history only after an explicit development-only guard. It preserves assets, rules, and migrations. It is not a production retention tool. The complete zero-to-report workflow and mock AI setup are in [Portfolio Demo](docs/demo.md) and [Incident Reporting](docs/reporting.md).
 
-## Quality checks
+## Testing
+
+CI runs backend lint/format in the exact multi-directory context, configuration validators, pytest, Alembic upgrade/check, frontend lint, strict TypeScript, Vitest, Prettier, production build, npm high-severity audit, Compose rendering, and lab-isolation validation.
 
 ```bash
-cd backend
-ruff check . ../tools ../lab
-ruff format --check . ../tools ../lab
-python -m app.cli.validate_scenarios
-python -m app.cli.validate_correlation
-python -m app.cli.validate_ai
-pytest
-alembic check
-
-cd ../frontend
-npm ci
-npm run lint
-npm run typecheck
-npm test
-npm run format:check
-npm run build
-npm audit
-
-cd ..
-docker compose config --quiet
+make release-check
 ```
 
-Backend tests use an isolated in-memory database. Migration validation runs against PostgreSQL in CI.
+Or run the exact checks documented in [v1.0 Release Checklist](docs/release-checklist.md). Backend tests use isolated SQLite where appropriate; CI migration checks use PostgreSQL. Real-container scenario validation remains a separate acceptance layer.
 
-## Security model
+## Project Structure
 
-Published services bind to `127.0.0.1`; a hardened fixed-upstream gateway is the safe lab portal's only host ingress, while the web app itself has no host binding. Lab networks are internal, the collector uses read-only named log volumes, and no service mounts the Docker socket. The non-root simulator broker has no host port, management membership, host mount, Docker socket, or generic execution endpoint. Its dedicated key is separate from the collector key. WebSocket browser origins are allow-listed. A real deployment still requires authentication, TLS, independent identities, key rotation, durable delivery, and production ingress controls.
+```text
+SENTINEL/
+├── backend/                 FastAPI, domain models, services, rules, reports, tests
+│   ├── alembic/             Versioned PostgreSQL migrations
+│   └── app/                 API, repositories, detection, correlation, AI, CLI
+├── frontend/                React/TypeScript analyst workspace and tests
+├── lab/                     Isolated corporate services, collector, host agent
+├── tools/                   Safe producers and integration/config validators
+├── docs/                    Architecture, security, API, demo, reporting, release
+├── docker-compose.yml       Full 11-service local topology
+├── Makefile                 Repeatable developer/demo/release commands
+└── .github/workflows/ci.yml CI-equivalent validation
+```
 
-## Roadmap
+## API
 
-1. **SENTINEL Core - complete:** persistent assets/events, normalized storage APIs, investigation UI, and dashboard aggregates
-2. **Live Telemetry - complete:** dedicated ingestion, asset resolution, WebSocket delivery, live query updates, and synthetic producer
-3. **Detection Engine - complete:** deterministic rules, suppression, evidence-backed alerts, live delivery, and analyst workflows
-4. **Corporate Docker Lab - complete:** isolated enterprise services, real logs, collectors, status, and detection integration
-5. **Attack Simulator - complete:** five safe allow-listed scenarios, real lab execution, persistent results, and live progress
-6. **Network / Attack Map - complete:** persisted observed relationships, live topology, scenario progression, deep links, and ATT&CK overlay
-7. **Incident Correlation - complete:** persistent explainable correlation, evidence-backed attack stories, lifecycle UI, live updates, and incident topology
-8. **Investigation Assistant / AI Incident Analysis - complete:** optional evidence-grounded summaries, persistent bounded Q&A, uncertainty, citations, staleness, and no automated response
+OpenAPI is served at <http://127.0.0.1:8000/api/docs>. The versioned surface includes health, Assets, SecurityEvents, telemetry ingestion, Alerts, rules, dashboard, lab/simulator state, ScenarioRuns, topology/relationships, Incidents, optional assistant operations, and Incident report download.
 
-## Project motivation
+Representative report routes:
 
-The project demonstrates defensive security concepts and full-stack engineering in one reproducible environment. Its focus is explainable data flows, safe lab isolation, and maintainable implementation rather than exaggerated claims or opaque automation.
+```text
+GET /api/v1/incidents/{incident_id}/report?format=pdf&include_ai=false
+GET /api/v1/incidents/{incident_id}/report?format=html&include_ai=false
+```
+
+See the maintained [API Reference](docs/api.md).
+
+## Limitations
+
+- No user authentication, RBAC, tenant isolation, TLS termination, key rotation, or production ingress.
+- Single-backend-process WebSocket delivery, suppression serialization, and correlation coordination.
+- No durable queue, long-term retention policy, packet capture, endpoint agent, threat-intelligence feed, or cross-instance pub/sub.
+- Corporate Lab uses fictional services and controlled activities; it is not a vulnerable target range.
+- Incident confidence is an experimental deterministic score, not compromise probability.
+- Missing telemetry never proves absence; network relationships are aggregates, not packet-level sessions.
+- Reports are unsigned point-in-time artifacts without chain-of-custody or forensic certification.
+- Redaction and AI grounding reduce risk but cannot prove every natural-language claim or detect every sensitive value.
+- Docker internal networking does not protect against a user with Docker daemon access.
+
+## Future Work
+
+Production identity/authorization, TLS ingress, service identities, durable delivery, distributed coordination, retention and deletion policy, signed report provenance, queued large exports, richer rule authoring, broader telemetry adapters, threat-intelligence enrichment, accessibility audits with assistive technology, and deployment hardening are deliberately left beyond v1.0.
 
 ## License
 
 MIT - see [LICENSE](LICENSE).
+
+Release details: [v1.0.0 Notes](docs/release-notes-v1.0.0.md) · [Changelog](CHANGELOG.md) · [Portfolio Notes](docs/portfolio.md)

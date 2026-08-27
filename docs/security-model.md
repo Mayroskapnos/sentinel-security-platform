@@ -57,8 +57,21 @@ Redaction cannot recognize every sensitive value, and natural-language grounding
 
 ## Development credentials
 
-Values in `.env.example` are local development defaults, not production secrets. Change them for shared environments. Event ingestion supports an optional `X-Sentinel-Collector-Key` shared key and simulator control uses the separate `X-Sentinel-Simulation-Key`; Compose enables both for the local lab. These are lightweight local trust boundaries, not replacements for TLS, per-agent identity, key rotation, or production authorization. JWT settings remain reserved and unused.
+Values in `.env.example` are local development defaults, not production secrets. Change them for shared environments. Event ingestion supports an optional `X-Sentinel-Collector-Key` shared key and simulator control uses the separate `X-Sentinel-Simulation-Key`; Compose enables both for the local lab. These are lightweight local trust boundaries, not replacements for TLS, per-agent identity, key rotation, or production authorization.
 
 ## Collector trust boundary
 
 Lab logs are treated as untrusted input. Adapters reject malformed records, redact recognized secret fields, and create the same Pydantic-validated `SecurityEventCreate` used by every ingestion caller. The collector cannot write source log volumes, cannot insert directly into PostgreSQL, and cannot bypass normal detection. Its checkpoint volume is writable and should be treated as operational state.
+
+## Incident report trust boundary
+
+- Reports are generated from a server-built, typed Incident snapshot; callers cannot supply factual report fields, filesystem paths, or filenames.
+- HTML dynamic values are escaped and the document contains no scripts or external resources. Download responses use attachment disposition, `nosniff`, `no-store`, and a restrictive CSP.
+- PDF values are emitted through ReportLab text/layout primitives and wrapped inside bounded tables; reports are generated in memory and are not retained on the server.
+- AI is excluded by default. Explicit inclusion selects only the latest completed analysis and labels it separately as non-authoritative and current/outdated.
+- Exported files can contain hostnames, IP addresses, usernames, alert narratives, and selected evidence. Operators must control storage, access, retention, and sharing after download.
+- Reports provide no signing, chain-of-custody, completeness proof, forensic certification, or compliance certification. Absence of evidence can reflect collection gaps.
+
+## Development reset boundary
+
+The demo reset CLI refuses execution unless `SENTINEL_ENV=development` and an explicit confirmation flag is supplied. It deletes generated telemetry, relationships, alerts, incidents, assistant state, and ScenarioRun history while preserving assets, detection rules, and Alembic history. It is a local demonstration tool, not a production retention/deletion mechanism.
